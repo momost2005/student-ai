@@ -1,11 +1,20 @@
-from app.ai.base import AIProvider
-from app.ai.providers.mock import MockAIProvider
+from app.ai.registry import AIProviderRegistry
+from app.ai.settings import AISettings
 
 
 class AIGateway:
 
-    def __init__(self):
-        self.provider: AIProvider = MockAIProvider()
+    def __init__(
+        self,
+        registry: AIProviderRegistry,
+        settings: AISettings
+    ):
+        self.registry = registry
+        self.settings = settings
 
     def generate(self, prompt: str) -> str:
-        return self.provider.generate(prompt)
+        provider = self.registry.get(
+            self.settings.active_provider
+        )
+
+        return provider.generate(prompt)
