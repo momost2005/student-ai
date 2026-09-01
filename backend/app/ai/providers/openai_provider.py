@@ -13,16 +13,21 @@ class OpenAIProvider(AIProvider):
 
     def __init__(self):
         self.api_key = os.getenv("OPENAI_API_KEY")
-        self.model = os.getenv(
-            "OPENAI_MODEL",
-            "gpt-5.4-mini"
-        )
 
-    def generate(self, prompt: str) -> str:
+    def generate(
+        self,
+        prompt: str,
+        model: str | None = None
+    ) -> str:
 
         if not self.api_key:
             raise ValueError(
                 "OPENAI_API_KEY is not configured"
+            )
+
+        if not model:
+            raise ValueError(
+                "OpenAI model is not configured"
             )
 
         client = OpenAI(
@@ -30,7 +35,7 @@ class OpenAIProvider(AIProvider):
         )
 
         response = client.responses.create(
-            model=self.model,
+            model=model,
             input=prompt
         )
 

@@ -1,3 +1,5 @@
+from sqlalchemy.orm import Session
+
 from app.ai.registry import AIProviderRegistry
 from app.ai.settings import AISettings
 
@@ -12,9 +14,32 @@ class AIGateway:
         self.registry = registry
         self.settings = settings
 
-    def generate(self, prompt: str) -> str:
-        provider = self.registry.get(
-            self.settings.active_provider
+
+    def generate(
+        self,
+        db: Session,
+        prompt: str
+    ) -> tuple[str, str | None, str]:
+
+        provider_name = (
+            self.settings.get_active_provider(db)
         )
 
-        return provider.generate(prompt)
+        model_name = (
+            self.settings.get_active_model(db)
+        )
+
+        provider = self.registry.get(
+            provider_name
+        )
+
+        response = provider.generate(
+            prompt=prompt,
+            model=model_name
+        )
+
+        return (
+            provider_name,
+            model_name,
+            response
+        )

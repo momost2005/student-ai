@@ -1,11 +1,67 @@
+from sqlalchemy.orm import Session
+
+from app.repositories.system_settings_repository import (
+    SystemSettingsRepository
+)
+
+
 class AISettings:
 
-    def __init__(self):
-        self._active_provider = "mock"
+    PROVIDER_KEY = "ai.active_provider"
+    MODEL_KEY = "ai.active_model"
 
-    @property
-    def active_provider(self) -> str:
-        return self._active_provider
+    def __init__(
+        self,
+        repository: SystemSettingsRepository
+    ):
+        self.repository = repository
 
-    def set_active_provider(self, provider_name: str):
-        self._active_provider = provider_name
+
+    def get_active_provider(
+        self,
+        db: Session
+    ) -> str:
+
+        value = self.repository.get(
+            db,
+            self.PROVIDER_KEY
+        )
+
+        return value or "mock"
+
+
+    def set_active_provider(
+        self,
+        db: Session,
+        provider_name: str
+    ) -> None:
+
+        self.repository.set(
+            db,
+            self.PROVIDER_KEY,
+            provider_name
+        )
+
+
+    def get_active_model(
+        self,
+        db: Session
+    ) -> str | None:
+
+        return self.repository.get(
+            db,
+            self.MODEL_KEY
+        )
+
+
+    def set_active_model(
+        self,
+        db: Session,
+        model_name: str
+    ) -> None:
+
+        self.repository.set(
+            db,
+            self.MODEL_KEY,
+            model_name
+        )
