@@ -25,3 +25,10 @@ Thumbs.db
 # Secrets
 *.key
 *.pem
+
+# Local database backups
+infrastructure/backups/
+
+curriculum/samples/*
+
+curriculum/processed/
