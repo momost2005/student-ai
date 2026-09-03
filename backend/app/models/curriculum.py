@@ -1,5 +1,7 @@
 from datetime import datetime
 
+from pgvector.sqlalchemy import VECTOR
+
 from sqlalchemy import (
     DateTime,
     ForeignKey,
@@ -15,6 +17,7 @@ from sqlalchemy.orm import (
 )
 
 from app.db.database import Base
+
 
 
 class Curriculum(Base):
@@ -238,6 +241,26 @@ class CurriculumChunk(Base):
         nullable=False
     )
 
+    embedding: Mapped[list[float] | None] = mapped_column(
+        VECTOR(),
+        nullable=True
+    )
+
+    embedding_provider: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True
+    )
+
+    embedding_model: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True
+    )
+
+    embedding_dimensions: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True
+    )
+
     question_number: Mapped[str | None] = mapped_column(
         String(50),
         nullable=True
@@ -264,3 +287,8 @@ class CurriculumChunk(Base):
         default=datetime.utcnow,
         nullable=False
     )    
+
+    embedded_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True
+    )
