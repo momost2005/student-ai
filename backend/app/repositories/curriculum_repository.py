@@ -206,4 +206,68 @@ class CurriculumRepository:
         for chunk in created_chunks:
             db.refresh(chunk)
 
-        return created_chunks        
+        return created_chunks 
+
+    def get_chunks_without_embeddings(
+        self,
+        db: Session
+    ) -> list[CurriculumChunk]:
+
+        statement = (
+            select(CurriculumChunk)
+            .where(
+                CurriculumChunk.embedding.is_(None)
+            )
+            .order_by(
+                CurriculumChunk.id
+            )
+        )
+
+        return list(
+            db.execute(
+                statement
+            ).scalars().all()
+        )
+    
+    def save_chunk_embeddings(
+        self,
+        db: Session,
+        chunks: list[CurriculumChunk],
+        embeddings: list[list[float]],
+        provider_name: str,
+        model_name: str,
+        dimensions: int
+    ) -> None:
+
+        if len(chunks) != len(embeddings):
+            raise ValueError(
+                "Chunks count does not match "
+                "embeddings count"
+            )
+
+        from datetime import datetime
+
+        embedded_at = datetime.utcnow()
+
+        for chunk, embedding in zip(
+            chunks,
+            embeddings
+        ):
+
+            chunk.embedding = embedding
+
+            chunk.embedding_provider = (
+                provider_name
+            )
+
+            chunk.embedding_model = (
+                model_name
+            )
+
+            chunk.embedding_dimensions = (
+                dimensions
+            )
+
+            chunk.embedded_at = embedded_at
+
+        db.commit()
