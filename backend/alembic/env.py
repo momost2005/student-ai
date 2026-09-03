@@ -35,6 +35,13 @@ if config.config_file_name is not None:
 # target_metadata = mymodel.Base.metadata
 from app.db.database import Base
 from app.models.system_setting import SystemSetting
+from app.models.curriculum import (
+    Curriculum,
+    CurriculumDocument,
+    CurriculumPage,
+    CurriculumSection,
+    CurriculumChunk
+)
 
 target_metadata = Base.metadata
 

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-import fitz
+import pymupdf
 
 
 @dataclass
@@ -20,7 +20,7 @@ class PyMuPDFDocumentProcessor:
 
     def extract(self, file_path: str) -> PDFDocument:
 
-        pdf = fitz.open(file_path)
+        pdf = pymupdf.open(file_path)
 
         pages: list[PDFPage] = []
 

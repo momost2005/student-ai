@@ -1,0 +1,266 @@
+from datetime import datetime
+
+from sqlalchemy import (
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text
+)
+
+from sqlalchemy.orm import (
+    Mapped,
+    mapped_column,
+    relationship
+)
+
+from app.db.database import Base
+
+
+class Curriculum(Base):
+    __tablename__ = "curricula"
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True
+    )
+
+    country: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False
+    )
+
+    education_system: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False
+    )
+
+    grade: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False
+    )
+
+    subject: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False
+    )
+
+    term: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False
+    )
+
+    academic_year: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False
+    )
+
+    documents = relationship(
+        "CurriculumDocument",
+        back_populates="curriculum",
+        cascade="all, delete-orphan"
+    )
+
+
+class CurriculumDocument(Base):
+    __tablename__ = "curriculum_documents"
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True
+    )
+
+    curriculum_id: Mapped[int] = mapped_column(
+        ForeignKey("curricula.id"),
+        nullable=False,
+        index=True
+    )
+
+    file_name: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False
+    )
+
+    title: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True
+    )
+
+    page_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False
+    )
+
+    processing_status: Mapped[str] = mapped_column(
+        String(50),
+        default="pending",
+        nullable=False
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False
+    )
+
+    curriculum = relationship(
+        "Curriculum",
+        back_populates="documents"
+    )
+
+    pages = relationship(
+        "CurriculumPage",
+        back_populates="document",
+        cascade="all, delete-orphan"
+    )
+
+
+class CurriculumPage(Base):
+    __tablename__ = "curriculum_pages"
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True
+    )
+
+    document_id: Mapped[int] = mapped_column(
+        ForeignKey("curriculum_documents.id"),
+        nullable=False,
+        index=True
+    )
+
+    page_number: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False
+    )
+
+    page_type: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True
+    )
+
+    raw_extracted_content: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False
+    )
+
+    document = relationship(
+        "CurriculumDocument",
+        back_populates="pages"
+    )
+
+    sections = relationship(
+        "CurriculumSection",
+        back_populates="page",
+        cascade="all, delete-orphan"
+    )
+
+
+class CurriculumSection(Base):    
+    __tablename__ = "curriculum_sections"
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True
+    )
+
+    page_id: Mapped[int] = mapped_column(
+        ForeignKey("curriculum_pages.id"),
+        nullable=False,
+        index=True
+    )
+
+    section_type: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True
+    )
+
+    title: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True
+    )
+
+    content: Mapped[str] = mapped_column(
+        Text,
+        nullable=False
+    )
+
+    sequence: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False
+    )
+
+    page = relationship(
+        "CurriculumPage",
+        back_populates="sections"
+    )
+
+class CurriculumChunk(Base):
+    __tablename__ = "curriculum_chunks"
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True
+    )
+
+    page_id: Mapped[int] = mapped_column(
+        ForeignKey("curriculum_pages.id"),
+        nullable=False,
+        index=True
+    )
+
+    section_id: Mapped[int | None] = mapped_column(
+        ForeignKey("curriculum_sections.id"),
+        nullable=True,
+        index=True
+    )
+
+    chunk_type: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False
+    )
+
+    content: Mapped[str] = mapped_column(
+        Text,
+        nullable=False
+    )
+
+    question_number: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True
+    )
+
+    lesson_number: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True
+    )
+
+    lesson_title: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True
+    )
+
+    sequence: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False
+    )    

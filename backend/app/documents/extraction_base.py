@@ -1,5 +1,9 @@
 from abc import ABC, abstractmethod
 
+from app.documents.extraction_models import (
+    ExtractedPage
+)
+
 
 class DocumentExtractionProvider(ABC):
 
@@ -7,6 +11,7 @@ class DocumentExtractionProvider(ABC):
     def extract_page(
         self,
         image_path: str,
+        page_number: int,
         model: str | None = None
-    ) -> str:
+    ) -> ExtractedPage:
         pass

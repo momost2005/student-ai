@@ -1,6 +1,6 @@
 from pathlib import Path
 
-import fitz
+import pymupdf
 
 
 class PDFPageRenderer:
@@ -13,7 +13,7 @@ class PDFPageRenderer:
         zoom: float = 2.0
     ) -> str:
 
-        document = fitz.open(pdf_path)
+        document = pymupdf.open(pdf_path)
 
         page_index = page_number - 1
 
@@ -24,7 +24,7 @@ class PDFPageRenderer:
 
         page = document[page_index]
 
-        matrix = fitz.Matrix(zoom, zoom)
+        matrix = pymupdf.Matrix(zoom, zoom)
 
         pixmap = page.get_pixmap(
             matrix=matrix,
