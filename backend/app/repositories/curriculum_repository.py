@@ -271,3 +271,52 @@ class CurriculumRepository:
             chunk.embedded_at = embedded_at
 
         db.commit()
+
+    def search_similar_chunks(
+        self,
+        db: Session,
+        query_embedding: list[float],
+        provider_name: str,
+        model_name: str,
+        dimensions: int,
+        limit: int = 5
+    ):
+
+        distance = (
+            CurriculumChunk.embedding
+            .cosine_distance(
+                query_embedding
+            )
+        )
+
+        statement = (
+            select(
+                CurriculumChunk,
+                distance.label(
+                    "distance"
+                )
+            )
+            .where(
+                CurriculumChunk.embedding
+                .is_not(None),
+
+                CurriculumChunk.embedding_provider
+                == provider_name,
+
+                CurriculumChunk.embedding_model
+                == model_name,
+
+                CurriculumChunk.embedding_dimensions
+                == dimensions
+            )
+            .order_by(
+                distance
+            )
+            .limit(
+                limit
+            )
+        )
+
+        return db.execute(
+            statement
+        ).all()
