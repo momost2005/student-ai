@@ -22,6 +22,7 @@ class CurriculumTutorService:
     def answer(
         self,
         db: Session,
+        curriculum_id: int,
         question: str,
         top_k: int = 4
     ) -> dict:
@@ -30,6 +31,7 @@ class CurriculumTutorService:
             self.search_service.search(
                 db=db,
                 query=question,
+                curriculum_id=curriculum_id,
                 limit=top_k
             )
         )

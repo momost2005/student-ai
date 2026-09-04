@@ -279,6 +279,7 @@ class CurriculumRepository:
         provider_name: str,
         model_name: str,
         dimensions: int,
+        curriculum_id: int,
         limit: int = 5
     ):
 
@@ -296,7 +297,20 @@ class CurriculumRepository:
                     "distance"
                 )
             )
+            .join(
+                CurriculumPage,
+                CurriculumChunk.page_id
+                == CurriculumPage.id
+            )
+            .join(
+                CurriculumDocument,
+                CurriculumPage.document_id
+                == CurriculumDocument.id
+            )
             .where(
+                CurriculumDocument.curriculum_id
+                == curriculum_id,
+
                 CurriculumChunk.embedding
                 .is_not(None),
 

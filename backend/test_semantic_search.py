@@ -82,6 +82,7 @@ try:
     results = search_service.search(
         db=db,
         query=query,
+        curriculum_id=1,
         limit=5
     )
 

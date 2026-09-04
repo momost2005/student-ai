@@ -30,6 +30,7 @@ class CurriculumSearchService:
         self,
         db: Session,
         query: str,
+        curriculum_id: int,
         limit: int = 5
     ) -> list[dict]:
 
@@ -51,6 +52,7 @@ class CurriculumSearchService:
                 provider_name=provider_name,
                 model_name=model_name,
                 dimensions=dimensions,
+                curriculum_id=curriculum_id,
                 limit=limit
             )
         )

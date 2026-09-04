@@ -144,6 +144,7 @@ try:
 
     result = tutor.answer(
         db=db,
+        curriculum_id=1,
         question=question,
         top_k=4
     )
