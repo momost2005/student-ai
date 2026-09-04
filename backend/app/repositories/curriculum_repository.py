@@ -299,6 +299,8 @@ class CurriculumRepository:
         model_name: str,
         dimensions: int,
         curriculum_id: int,
+        lesson_number: str | None = None,
+        chunk_types: list[str] | None = None,
         limit: int = 5
     ):
 
@@ -308,6 +310,39 @@ class CurriculumRepository:
                 query_embedding
             )
         )
+
+        conditions = [
+            CurriculumDocument.curriculum_id
+            == curriculum_id,
+
+            CurriculumChunk.embedding
+            .is_not(None),
+
+            CurriculumChunk.embedding_provider
+            == provider_name,
+
+            CurriculumChunk.embedding_model
+            == model_name,
+
+            CurriculumChunk.embedding_dimensions
+            == dimensions
+        ]
+
+
+        if lesson_number:
+
+            conditions.append(
+                CurriculumChunk.lesson_number
+                == lesson_number
+            )
+
+        if chunk_types:
+
+            conditions.append(
+                CurriculumChunk.chunk_type.in_(
+                    chunk_types
+                )
+            )
 
         statement = (
             select(
@@ -327,20 +362,7 @@ class CurriculumRepository:
                 == CurriculumDocument.id
             )
             .where(
-                CurriculumDocument.curriculum_id
-                == curriculum_id,
-
-                CurriculumChunk.embedding
-                .is_not(None),
-
-                CurriculumChunk.embedding_provider
-                == provider_name,
-
-                CurriculumChunk.embedding_model
-                == model_name,
-
-                CurriculumChunk.embedding_dimensions
-                == dimensions
+                *conditions
             )
             .order_by(
                 distance
@@ -349,6 +371,7 @@ class CurriculumRepository:
                 limit
             )
         )
+
 
         return db.execute(
             statement

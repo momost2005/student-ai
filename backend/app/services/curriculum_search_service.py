@@ -31,6 +31,8 @@ class CurriculumSearchService:
         db: Session,
         query: str,
         curriculum_id: int,
+        lesson_number: str | None = None,
+        chunk_types: list[str] | None = None,
         limit: int = 5
     ) -> list[dict]:
 
@@ -53,6 +55,8 @@ class CurriculumSearchService:
                 model_name=model_name,
                 dimensions=dimensions,
                 curriculum_id=curriculum_id,
+                lesson_number=lesson_number,
+                chunk_types=chunk_types,
                 limit=limit
             )
         )

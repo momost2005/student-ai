@@ -24,17 +24,30 @@ class CurriculumTutorService:
         db: Session,
         curriculum_id: int,
         question: str,
+        lesson_number: str | None = None,
+        chunk_types: list[str] | None = None,
         top_k: int = 4
     ) -> dict:
+
+        # -------------------------------------------------
+        # 1. Retrieve relevant curriculum chunks
+        # -------------------------------------------------
 
         search_results = (
             self.search_service.search(
                 db=db,
                 query=question,
                 curriculum_id=curriculum_id,
+                lesson_number=lesson_number,
+                chunk_types=chunk_types,
                 limit=top_k
             )
         )
+
+
+        # -------------------------------------------------
+        # 2. Stop if no relevant curriculum content exists
+        # -------------------------------------------------
 
         if not search_results:
 
@@ -46,6 +59,10 @@ class CurriculumTutorService:
                 "sources": []
             }
 
+
+        # -------------------------------------------------
+        # 3. Build curriculum context
+        # -------------------------------------------------
 
         context_parts = []
 
@@ -73,15 +90,34 @@ Content:
             )
 
 
-        curriculum_context = (
-            "\n\n".join(
-                context_parts
-            )
+        curriculum_context = "\n\n".join(
+            context_parts
         )
 
 
+        # -------------------------------------------------
+        # 4. Add lesson awareness
+        # -------------------------------------------------
+
+        lesson_context = ""
+
+        if lesson_number:
+
+            lesson_context = (
+                f"The student is currently "
+                f"studying Lesson "
+                f"{lesson_number}."
+            )
+
+
+        # -------------------------------------------------
+        # 5. Build grounded tutor prompt
+        # -------------------------------------------------
+
         prompt = f"""
 You are an AI mathematics tutor.
+
+{lesson_context}
 
 Your job is to answer the student's question
 using the supplied curriculum context.
@@ -124,6 +160,10 @@ Answer the student directly.
 """
 
 
+        # -------------------------------------------------
+        # 6. Generate grounded answer
+        # -------------------------------------------------
+
         (
             provider_name,
             model_name,
@@ -133,6 +173,10 @@ Answer the student directly.
             prompt=prompt
         )
 
+
+        # -------------------------------------------------
+        # 7. Return sources for debugging / UI
+        # -------------------------------------------------
 
         sources = []
 
@@ -145,6 +189,9 @@ Answer the student directly.
 
                     "chunk_type":
                         result["chunk_type"],
+
+                    "lesson_number":
+                        result["lesson_number"],
 
                     "lesson_title":
                         result["lesson_title"],
