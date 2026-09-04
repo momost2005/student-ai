@@ -8,18 +8,22 @@ from app.repositories.curriculum_repository import (
     CurriculumRepository
 )
 
+from app.services.retrieval_settings import (
+    RetrievalSettings
+)
 
 class CurriculumSearchService:
 
     def __init__(
-        self,
-        gateway: EmbeddingGateway,
-        repository: CurriculumRepository
+    self,
+    gateway: EmbeddingGateway,
+    repository: CurriculumRepository,
+    retrieval_settings: RetrievalSettings
     ):
 
         self.gateway = gateway
-
         self.repository = repository
+        self.retrieval_settings = retrieval_settings
 
 
     def search(
@@ -51,6 +55,13 @@ class CurriculumSearchService:
             )
         )
 
+        minimum_similarity = (
+            self.retrieval_settings
+            .get_minimum_similarity(
+                db
+            )
+        )
+
         results = []
 
         for chunk, distance in rows:
@@ -58,6 +69,9 @@ class CurriculumSearchService:
             similarity = (
                 1.0 - float(distance)
             )
+
+            if similarity < minimum_similarity:
+                continue
 
             results.append(
                 {
