@@ -51,13 +51,15 @@ class CurriculumChunkingService:
         )
 
         lesson_number = (
-            extracted_page.get(
+            page.lesson_number
+            or extracted_page.get(
                 "lesson_number"
             )
         )
 
         lesson_title = (
-            extracted_page.get(
+            page.lesson_title
+            or extracted_page.get(
                 "lesson_title"
             )
         )

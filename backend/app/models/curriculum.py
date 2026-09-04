@@ -148,6 +148,16 @@ class CurriculumPage(Base):
         nullable=True
     )
 
+    lesson_number: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True
+    )
+
+    lesson_title: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True
+    )
+
     raw_extracted_content: Mapped[str | None] = mapped_column(
         Text,
         nullable=True

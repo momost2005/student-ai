@@ -28,12 +28,27 @@ class CurriculumRepository:
         sections
     ) -> None:
 
-        # Remove existing sections for this page
+        # Chunks are derived from sections.
+        # Delete old chunks before deleting/replacing sections.
+        db.execute(
+            delete(
+                CurriculumChunk
+            ).where(
+                CurriculumChunk.page_id == page.id
+            )
+        )
+
+        db.flush()
+
+        # Remove old sections
         page.sections.clear()
 
         db.flush()
 
-        for index, section in enumerate(sections):
+        # Create the newly extracted sections
+        for index, section in enumerate(
+            sections
+        ):
 
             content_parts = []
 
@@ -44,7 +59,9 @@ class CurriculumRepository:
 
             for question in section.questions:
 
-                question_text = question.text
+                question_text = (
+                    question.text
+                )
 
                 if question.math_expression:
                     question_text += (
@@ -68,7 +85,9 @@ class CurriculumRepository:
                 sequence=index
             )
 
-            db.add(db_section)
+            db.add(
+                db_section
+            )
 
         db.commit()
 
