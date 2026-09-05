@@ -7,7 +7,8 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
-    Text
+    Text,
+    UniqueConstraint
 )
 
 from sqlalchemy.orm import (
@@ -366,6 +367,7 @@ class Student(Base):
 
 
 class PracticeAttempt(Base):
+
     __tablename__ = "practice_attempts"
 
     id: Mapped[int] = mapped_column(
@@ -447,6 +449,154 @@ class PracticeAttempt(Base):
     ai_model: Mapped[str | None] = mapped_column(
         String(100),
         nullable=True
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False
+    )
+
+class CurriculumConcept(Base):
+    __tablename__ = "curriculum_concepts"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "curriculum_id",
+            "lesson_number",
+            "code",
+            name="uq_curriculum_concept_scope"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True
+    )
+
+    curriculum_id: Mapped[int] = mapped_column(
+        ForeignKey("curricula.id"),
+        nullable=False,
+        index=True
+    )
+
+    lesson_number: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        index=True
+    )
+
+    code: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False
+    )
+
+    name: Mapped[str] = mapped_column(
+        String(150),
+        nullable=False
+    )
+
+    description: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False
+    )
+
+
+class CurriculumChunkConcept(Base):
+
+    __tablename__ = "curriculum_chunk_concepts"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "chunk_id",
+            "concept_id",
+            name="uq_curriculum_chunk_concept"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True
+    )
+
+    chunk_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "curriculum_chunks.id",
+            ondelete="CASCADE"
+        ),
+        nullable=False,
+        index=True
+    )
+
+    concept_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "curriculum_concepts.id",
+            ondelete="CASCADE"
+        ),
+        nullable=False,
+        index=True
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False
+    )
+
+class PracticeAttemptConcept(Base):
+    __tablename__ = "practice_attempt_concepts"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "attempt_id",
+            "concept_code",
+            name="uq_practice_attempt_concept"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True
+    )
+
+    attempt_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "practice_attempts.id",
+            ondelete="CASCADE"
+        ),
+        nullable=False,
+        index=True
+    )
+
+    concept_id: Mapped[int | None] = mapped_column(
+        ForeignKey(
+            "curriculum_concepts.id",
+            ondelete="SET NULL"
+        ),
+        nullable=True,
+        index=True
+    )
+
+    concept_code: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False
+    )
+
+    concept_name: Mapped[str] = mapped_column(
+        String(150),
+        nullable=False
+    )
+
+    source: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="question_mapping"
     )
 
     created_at: Mapped[datetime] = mapped_column(

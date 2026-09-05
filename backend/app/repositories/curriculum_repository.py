@@ -18,7 +18,10 @@ from app.models.curriculum import (
     CurriculumPage,
     CurriculumSection,
     CurriculumQuestionSolution,
-    PracticeAttempt
+    PracticeAttempt,
+    CurriculumConcept,
+    CurriculumChunkConcept,
+    PracticeAttemptConcept
 )
 
 class CurriculumRepository:
@@ -498,6 +501,38 @@ class CurriculumRepository:
 
         db.add(attempt)
 
+        # We need the attempt ID before creating
+        # the child concept snapshot records.
+        db.flush()
+
+
+        concepts = (
+            self.get_chunk_concepts(
+                db=db,
+                chunk_id=chunk.id
+            )
+        )
+
+
+        for concept in concepts:
+
+            attempt_concept = (
+                PracticeAttemptConcept(
+                    attempt_id=attempt.id,
+
+                    concept_id=concept.id,
+
+                    concept_code=concept.code,
+
+                    concept_name=concept.name,
+
+                    source="question_mapping"
+                )
+            )
+
+        db.add(attempt_concept)
+
+
         db.commit()
 
         db.refresh(attempt)
@@ -579,4 +614,36 @@ class CurriculumRepository:
             db.execute(
                 statement
             ).scalar_one()
+        )
+
+    def get_chunk_concepts(
+        self,
+        db: Session,
+        chunk_id: int
+    ) -> list[CurriculumConcept]:
+
+        statement = (
+            select(
+                CurriculumConcept
+            )
+            .join(
+                CurriculumChunkConcept,
+                CurriculumChunkConcept.concept_id
+                == CurriculumConcept.id
+            )
+            .where(
+                CurriculumChunkConcept.chunk_id
+                == chunk_id
+            )
+            .order_by(
+                CurriculumConcept.id
+            )
+        )
+
+        return list(
+            db.execute(
+                statement
+            )
+            .scalars()
+            .all()
         )

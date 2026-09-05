@@ -43,7 +43,10 @@ from app.models.curriculum import (
     CurriculumChunk,
     CurriculumQuestionSolution,
     Student,
-    PracticeAttempt
+    PracticeAttempt,
+    CurriculumConcept,
+    CurriculumChunkConcept,
+    PracticeAttemptConcept
 )
 
 target_metadata = Base.metadata
