@@ -16,7 +16,8 @@ from app.models.curriculum import (
     CurriculumChunk,
     CurriculumDocument,
     CurriculumPage,
-    CurriculumSection
+    CurriculumSection,
+    CurriculumQuestionSolution
 )
 
 class CurriculumRepository:
@@ -376,3 +377,26 @@ class CurriculumRepository:
         return db.execute(
             statement
         ).all()
+
+    def get_verified_solution(
+        self,
+        db: Session,
+        chunk_id: int
+    ) -> CurriculumQuestionSolution | None:
+
+        statement = (
+            select(
+                CurriculumQuestionSolution
+            )
+            .where(
+                CurriculumQuestionSolution.chunk_id
+                == chunk_id,
+
+                CurriculumQuestionSolution.verification_status
+                == "verified"
+            )
+        )
+
+        return db.execute(
+            statement
+        ).scalar_one_or_none()

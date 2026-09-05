@@ -302,3 +302,45 @@ class CurriculumChunk(Base):
         DateTime,
         nullable=True
     )
+
+class CurriculumQuestionSolution(Base):
+    __tablename__ = "curriculum_question_solutions"
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True
+    )
+
+    chunk_id: Mapped[int] = mapped_column(
+        ForeignKey("curriculum_chunks.id"),
+        nullable=False,
+        unique=True,
+        index=True
+    )
+
+    final_answer: Mapped[str] = mapped_column(
+        Text,
+        nullable=False
+    )
+
+    solution_steps: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True
+    )
+
+    solution_source: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False
+    )
+
+    verification_status: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="pending"
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False
+    )

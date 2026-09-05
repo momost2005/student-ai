@@ -40,7 +40,8 @@ from app.models.curriculum import (
     CurriculumDocument,
     CurriculumPage,
     CurriculumSection,
-    CurriculumChunk
+    CurriculumChunk,
+    CurriculumQuestionSolution
 )
 
 target_metadata = Base.metadata
