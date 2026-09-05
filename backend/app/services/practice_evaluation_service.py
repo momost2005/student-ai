@@ -2,7 +2,9 @@ import json
 
 from sqlalchemy.orm import Session
 
-from app.ai.gateway import AIGateway
+from app.ai.gateway import (
+    AIGateway
+)
 
 from app.repositories.curriculum_repository import (
     CurriculumRepository
@@ -36,7 +38,7 @@ class PracticeEvaluationService:
 
         # -----------------------------------------
         # Remove Markdown code fences if the model
-        # unexpectedly returned them.
+        # unexpectedly returns them.
         # -----------------------------------------
 
         if text.startswith("```"):
@@ -53,12 +55,17 @@ class PracticeEvaluationService:
                     "```"
                 )
             ):
+
                 lines = lines[:-1]
 
             text = "\n".join(
                 lines
             ).strip()
 
+
+        # -----------------------------------------
+        # Parse JSON
+        # -----------------------------------------
 
         try:
 
@@ -79,7 +86,7 @@ class PracticeEvaluationService:
 
 
         # -----------------------------------------
-        # Validate overall status
+        # Validate overall AI status
         # -----------------------------------------
 
         status = (
@@ -106,12 +113,15 @@ class PracticeEvaluationService:
             status = "unknown"
 
 
-        feedback = str(
-            data.get(
-                "feedback",
-                ""
+        feedback = (
+            str(
+                data.get(
+                    "feedback",
+                    ""
+                )
             )
-        ).strip()
+            .strip()
+        )
 
 
         # -----------------------------------------
@@ -148,6 +158,7 @@ class PracticeEvaluationService:
                 item,
                 dict
             ):
+
                 continue
 
 
@@ -162,12 +173,16 @@ class PracticeEvaluationService:
             )
 
 
-            # Do not allow the AI to invent
+            # -------------------------------------
+            # The AI is not allowed to invent
             # curriculum concepts.
+            # -------------------------------------
+
             if (
                 concept_code
                 not in expected_concept_codes
             ):
+
                 continue
 
 
@@ -194,12 +209,15 @@ class PracticeEvaluationService:
                 )
 
 
-            reason = str(
-                item.get(
-                    "reason",
-                    ""
+            reason = (
+                str(
+                    item.get(
+                        "reason",
+                        ""
+                    )
                 )
-            ).strip()
+                .strip()
+            )
 
 
             concept_diagnoses[
@@ -214,9 +232,10 @@ class PracticeEvaluationService:
 
 
         # -----------------------------------------
-        # Every expected concept must get a result.
+        # Every expected concept must have a
+        # diagnosis.
         #
-        # Missing diagnosis does NOT mean weak.
+        # Missing diagnosis never means weak.
         # -----------------------------------------
 
         for concept_code in (
@@ -251,6 +270,105 @@ class PracticeEvaluationService:
         )
 
 
+    def _normalize_overall_status(
+        self,
+        ai_status: str,
+        concept_diagnoses: dict[str, dict]
+    ) -> str:
+
+        # -----------------------------------------
+        # Keep explicit incorrect decisions.
+        # -----------------------------------------
+
+        if ai_status == "incorrect":
+
+            return "incorrect"
+
+
+        # -----------------------------------------
+        # Keep explicit partial decisions.
+        # -----------------------------------------
+
+        if ai_status == "partial":
+
+            return "partial"
+
+
+        if ai_status != "correct":
+
+            return ai_status
+
+
+        diagnosis_statuses = {
+            diagnosis.get(
+                "status"
+            )
+            for diagnosis
+            in concept_diagnoses.values()
+        }
+
+
+        # -----------------------------------------
+        # The AI cannot mark the whole answer
+        # correct when one of the concepts required
+        # by the question has not been demonstrated.
+        # -----------------------------------------
+
+        if (
+            "needs_review"
+            in diagnosis_statuses
+        ):
+
+            return "partial"
+
+
+        if (
+            "insufficient_evidence"
+            in diagnosis_statuses
+        ):
+
+            return "partial"
+
+
+        return "correct"
+
+
+    def _normalize_feedback(
+        self,
+        ai_status: str,
+        normalized_status: str,
+        feedback: str
+    ) -> str:
+
+        # -----------------------------------------
+        # Example:
+        #
+        # AI says overall "correct" because the
+        # final numeric answer is right, but one
+        # required concept has insufficient
+        # evidence.
+        #
+        # We normalize the result to partial and
+        # make the feedback consistent.
+        # -----------------------------------------
+
+        if (
+            ai_status == "correct"
+            and
+            normalized_status == "partial"
+        ):
+
+            return (
+                "Your final answer is correct, "
+                "but you did not provide enough "
+                "work to demonstrate all required "
+                "parts of the question."
+            )
+
+
+        return feedback
+
+
     def evaluate(
         self,
         db: Session,
@@ -261,7 +379,7 @@ class PracticeEvaluationService:
     ) -> dict:
 
         # -----------------------------------------
-        # 1. Get trusted question from database
+        # 1. Get trusted curriculum question
         # -----------------------------------------
 
         chunk = (
@@ -272,6 +390,7 @@ class PracticeEvaluationService:
                 curriculum_id=curriculum_id
             )
         )
+
 
         if not chunk:
 
@@ -299,6 +418,53 @@ class PracticeEvaluationService:
             )
         )
 
+
+        if not solution:
+
+            feedback = (
+                "No verified reference "
+                "answer is available for "
+                "this question."
+            )
+
+
+            attempt = (
+                self.repository
+                .save_practice_attempt(
+                    db=db,
+                    student_id=student_id,
+                    curriculum_id=curriculum_id,
+                    chunk=chunk,
+                    student_answer=student_answer,
+                    reference_answer=None,
+                    evaluation_status=(
+                        "cannot_evaluate"
+                    ),
+                    feedback=feedback,
+                    solution_source=None,
+                    ai_provider=None,
+                    ai_model=None,
+                    concept_diagnoses=None
+                )
+            )
+
+
+            return {
+                "attempt_id":
+                    attempt.id,
+
+                "status":
+                    "cannot_evaluate",
+
+                "feedback":
+                    feedback
+            }
+
+
+        # -----------------------------------------
+        # 3. Get trusted curriculum concepts
+        # -----------------------------------------
+
         concepts = (
             self.repository
             .get_chunk_concepts(
@@ -308,7 +474,14 @@ class PracticeEvaluationService:
         )
 
 
+        expected_concept_codes = [
+            concept.code
+            for concept in concepts
+        ]
+
+
         concept_lines = []
+
 
         for concept in concepts:
 
@@ -325,54 +498,16 @@ class PracticeEvaluationService:
         )
 
 
-        expected_concept_codes = [
-            concept.code
-            for concept in concepts
-        ]
+        if not concept_context:
 
-        if not solution:
-
-            attempt = (
-                self.repository
-                .save_practice_attempt(
-                    db=db,
-                    student_id=student_id,
-                    curriculum_id=curriculum_id,
-                    chunk=chunk,
-                    student_answer=student_answer,
-                    reference_answer=None,
-                    evaluation_status=(
-                        "cannot_evaluate"
-                    ),
-                    feedback=(
-                        "No verified reference "
-                        "answer is available for "
-                        "this question."
-                    ),
-                    solution_source=None,
-                    ai_provider=None,
-                    ai_model=None
-                )
+            concept_context = (
+                "No explicit curriculum concepts "
+                "are mapped to this question."
             )
-
-            return {
-                "status":
-                    "cannot_evaluate",
-
-                "feedback":
-                    (
-                        "No verified reference "
-                        "answer is available for "
-                        "this question."
-                    ),
-
-                "attempt_id":
-                    attempt.id
-            }
 
 
         # -----------------------------------------
-        # 3. Build evaluation prompt
+        # 4. Build evaluation prompt
         # -----------------------------------------
 
         prompt = f"""
@@ -433,7 +568,12 @@ Important rules:
 
 10. Do not invent additional concept codes.
 
-11. Return valid JSON only.
+11. If the question explicitly asks the student to show
+    a method or intermediate work, and the final answer
+    is correct but that required work is missing, the
+    overall status should be "partial".
+
+12. Return valid JSON only.
     Do not use Markdown.
     Do not use code fences.
 
@@ -454,7 +594,7 @@ Return exactly this JSON structure:
 
 
         # -----------------------------------------
-        # 4. Ask active AI provider to evaluate
+        # 5. AI evaluation
         # -----------------------------------------
 
         (
@@ -467,8 +607,12 @@ Return exactly this JSON structure:
         )
 
 
+        # -----------------------------------------
+        # 6. Parse AI response
+        # -----------------------------------------
+
         (
-            evaluation_status,
+            ai_status,
             feedback,
             concept_diagnoses
         ) = self._parse_evaluation(
@@ -480,7 +624,32 @@ Return exactly this JSON structure:
 
 
         # -----------------------------------------
-        # 5. Save student attempt
+        # 7. Deterministic consistency guardrail
+        # -----------------------------------------
+
+        evaluation_status = (
+            self._normalize_overall_status(
+                ai_status=ai_status,
+                concept_diagnoses=(
+                    concept_diagnoses
+                )
+            )
+        )
+
+
+        feedback = (
+            self._normalize_feedback(
+                ai_status=ai_status,
+                normalized_status=(
+                    evaluation_status
+                ),
+                feedback=feedback
+            )
+        )
+
+
+        # -----------------------------------------
+        # 8. Save attempt + concept diagnoses
         # -----------------------------------------
 
         attempt = (
@@ -511,7 +680,7 @@ Return exactly this JSON structure:
 
 
         # -----------------------------------------
-        # 6. Return evaluation
+        # 9. Return result
         # -----------------------------------------
 
         return {
@@ -520,6 +689,9 @@ Return exactly this JSON structure:
 
             "status":
                 evaluation_status,
+
+            "ai_status":
+                ai_status,
 
             "feedback":
                 feedback,

@@ -29,10 +29,6 @@ from app.services.practice_evaluation_service import (
 )
 
 
-# -------------------------------------------------
-# Command-line arguments
-# -------------------------------------------------
-
 if len(sys.argv) < 3:
 
     print()
@@ -46,15 +42,6 @@ if len(sys.argv) < 3:
     )
 
     print()
-
-    print(
-        "Example:"
-    )
-
-    print(
-        'python test_practice_evaluation.py '
-        '158 "GCF = 15"'
-    )
 
     sys.exit(1)
 
@@ -79,18 +66,10 @@ student_answer = " ".join(
 )
 
 
-# -------------------------------------------------
-# Database
-# -------------------------------------------------
-
 db = SessionLocal()
 
 
 try:
-
-    # ---------------------------------------------
-    # AI infrastructure
-    # ---------------------------------------------
 
     system_repository = (
         SystemSettingsRepository()
@@ -117,18 +96,10 @@ try:
     )
 
 
-    # ---------------------------------------------
-    # Curriculum repository
-    # ---------------------------------------------
-
     curriculum_repository = (
         CurriculumRepository()
     )
 
-
-    # ---------------------------------------------
-    # Evaluation service
-    # ---------------------------------------------
 
     evaluation_service = (
         PracticeEvaluationService(
@@ -142,10 +113,6 @@ try:
     )
 
 
-    # ---------------------------------------------
-    # Evaluate
-    # ---------------------------------------------
-
     result = (
         evaluation_service.evaluate(
             db=db,
@@ -158,10 +125,6 @@ try:
         )
     )
 
-
-    # ---------------------------------------------
-    # Output
-    # ---------------------------------------------
 
     print()
     print("=" * 80)
@@ -190,7 +153,12 @@ try:
     )
 
     print(
-        f"Status: "
+        f"AI Status: "
+        f"{result.get('ai_status')}"
+    )
+
+    print(
+        f"Final Status: "
         f"{result.get('status')}"
     )
 
