@@ -454,12 +454,15 @@ class CurriculumRepository:
         solution_source: str | None,
         ai_provider: str | None,
         ai_model: str | None,
-        concept_diagnoses: dict[str, dict] | None = None
+        concept_diagnoses: dict[str, dict] | None = None,
+        idempotency_key: str | None = None
     ) -> PracticeAttempt:
 
         attempt = PracticeAttempt(
             student_id=student_id,
             curriculum_id=curriculum_id,
+
+            idempotency_key=idempotency_key,
 
             chunk_id=chunk.id,
 
@@ -569,9 +572,6 @@ class CurriculumRepository:
             )
 
             db.add(attempt_concept)
-
-        db.add(attempt_concept)
-
 
         db.commit()
 

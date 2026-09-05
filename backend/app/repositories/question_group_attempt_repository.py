@@ -31,7 +31,8 @@ class QuestionGroupAttemptRepository:
         evaluation_status: str,
         feedback: str,
         solution_source: str,
-        concept_diagnoses: dict[str, dict]
+        concept_diagnoses: dict[str, dict],
+        idempotency_key: str | None = None
     ) -> PracticeAttempt:
 
         # -------------------------------------------------
@@ -69,6 +70,8 @@ class QuestionGroupAttemptRepository:
             student_id=student_id,
 
             curriculum_id=curriculum_id,
+
+            idempotency_key=idempotency_key,
 
             chunk_id=None,
 

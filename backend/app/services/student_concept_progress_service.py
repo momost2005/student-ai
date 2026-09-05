@@ -103,6 +103,9 @@ class StudentConceptProgressService:
                     "historical_insufficient_evidence_count":
                         0,
 
+                    "historical_unassessed_count":
+                        0,
+
                     # -------------------------------------
                     # Latest overall assessed evidence
                     # -------------------------------------
@@ -196,6 +199,13 @@ class StudentConceptProgressService:
 
                 item[
                     "historical_insufficient_evidence_count"
+                ] += 1
+
+
+            else:
+
+                item[
+                    "historical_unassessed_count"
                 ] += 1
 
 
@@ -426,6 +436,23 @@ class StudentConceptProgressService:
                     item[
                         "historical_insufficient_evidence_count"
                     ],
+
+                "historical_unassessed_count":
+                    item[
+                        "historical_unassessed_count"
+                    ],
+
+                "historical_evidence_count": (
+                    item[
+                        "historical_demonstrated_count"
+                    ]
+                    + item[
+                        "historical_needs_review_count"
+                    ]
+                    + item[
+                        "historical_insufficient_evidence_count"
+                    ]
+                ),
 
                 "unique_assessed_questions":
                     unique_assessed_questions,

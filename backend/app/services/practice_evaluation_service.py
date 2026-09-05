@@ -337,9 +337,9 @@ class PracticeEvaluationService:
         db: Session,
         attempt_id: int,
         chunk_id: int
-    ) -> None:
+    ):
 
-        self.question_identity_repository.save_identity(
+        return self.question_identity_repository.save_identity(
             db=db,
             attempt_id=attempt_id,
             chunk_id=chunk_id
@@ -352,7 +352,8 @@ class PracticeEvaluationService:
         student_id: int,
         curriculum_id: int,
         chunk_id: int,
-        student_answer: str
+        student_answer: str,
+        idempotency_key: str | None = None
     ) -> dict:
 
         # -------------------------------------------------
@@ -421,12 +422,13 @@ class PracticeEvaluationService:
                     solution_source=None,
                     ai_provider=None,
                     ai_model=None,
-                    concept_diagnoses=None
+                    concept_diagnoses=None,
+                    idempotency_key=idempotency_key
                 )
             )
 
 
-            self._save_question_identity(
+            identity = self._save_question_identity(
                 db=db,
                 attempt_id=attempt.id,
                 chunk_id=chunk.id
@@ -436,6 +438,9 @@ class PracticeEvaluationService:
             return {
                 "attempt_id":
                     attempt.id,
+
+                "logical_question_key":
+                    identity.logical_question_key,
 
                 "status":
                     "cannot_evaluate",
@@ -616,7 +621,9 @@ Return exactly this JSON structure:
                 ai_status=ai_status,
                 concept_diagnoses=(
                     concept_diagnoses
-                )
+                ),
+
+                idempotency_key=idempotency_key
             )
         )
 

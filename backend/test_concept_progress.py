@@ -154,6 +154,16 @@ try:
             f"{item['historical_insufficient_evidence_count']}"
         )
 
+        print(
+            f"Historical Unassessed: "
+            f"{item['historical_unassessed_count']}"
+        )
+
+        print(
+            f"Historical Evidence Records: "
+            f"{item['historical_evidence_count']}"
+        )
+
 
         print()
         print(

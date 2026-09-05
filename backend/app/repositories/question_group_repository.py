@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.models.curriculum import (
     CurriculumChunk,
+    CurriculumDocument,
     CurriculumConcept
 )
 
@@ -29,6 +30,39 @@ class QuestionGroupRepository:
         return db.get(
             CurriculumQuestionGroup,
             question_group_id
+        )
+
+
+    def get_group_for_curriculum(
+        self,
+        db: Session,
+        question_group_id: int,
+        curriculum_id: int
+    ) -> CurriculumQuestionGroup | None:
+
+        statement = (
+            select(
+                CurriculumQuestionGroup
+            )
+            .join(
+                CurriculumDocument,
+                CurriculumQuestionGroup.document_id
+                == CurriculumDocument.id
+            )
+            .where(
+                CurriculumQuestionGroup.id
+                == question_group_id,
+
+                CurriculumDocument.curriculum_id
+                == curriculum_id
+            )
+        )
+
+        return (
+            db.execute(
+                statement
+            )
+            .scalar_one_or_none()
         )
 
 

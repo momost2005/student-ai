@@ -370,6 +370,15 @@ class PracticeAttempt(Base):
 
     __tablename__ = "practice_attempts"
 
+    __table_args__ = (
+        UniqueConstraint(
+            "student_id",
+            "curriculum_id",
+            "idempotency_key",
+            name="uq_practice_attempt_idempotency"
+        ),
+    )
+
     id: Mapped[int] = mapped_column(
         Integer,
         primary_key=True
@@ -385,6 +394,11 @@ class PracticeAttempt(Base):
         ForeignKey("curricula.id"),
         nullable=False,
         index=True
+    )
+
+    idempotency_key: Mapped[str | None] = mapped_column(
+        String(200),
+        nullable=True
     )
 
     chunk_id: Mapped[int | None] = mapped_column(

@@ -32,16 +32,35 @@ class QuestionGroupEvaluationService:
         student_id: int,
         curriculum_id: int,
         question_group_id: int,
-        selected_sequences: list[int]
+        selected_sequences: list[int],
+        idempotency_key: str | None = None
     ) -> dict:
+
+        if (
+            not isinstance(selected_sequences, list)
+            or any(
+                not isinstance(value, int)
+                or isinstance(value, bool)
+                for value in selected_sequences
+            )
+        ):
+
+            return {
+                "status": "invalid_answer",
+                "feedback": (
+                    "A multi-select answer must be a list "
+                    "of option numbers."
+                )
+            }
 
         group = (
             self.repository
-            .get_group(
+            .get_group_for_curriculum(
                 db=db,
                 question_group_id=(
                     question_group_id
-                )
+                ),
+                curriculum_id=curriculum_id
             )
         )
 
@@ -170,7 +189,7 @@ class QuestionGroupEvaluationService:
             )
 
 
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, TypeError):
 
             return {
                 "status":
@@ -184,12 +203,42 @@ class QuestionGroupEvaluationService:
             }
 
 
-        correct = set(
-            payload.get(
-                "correct_option_sequences",
-                []
-            )
+        raw_correct = payload.get(
+            "correct_option_sequences"
         )
+
+
+        if (
+            not isinstance(raw_correct, list)
+            or not raw_correct
+            or any(
+                not isinstance(value, int)
+                or isinstance(value, bool)
+                for value in raw_correct
+            )
+        ):
+
+            return {
+                "status": "cannot_evaluate",
+                "feedback": (
+                    "The verified answer has an invalid "
+                    "multi-select format."
+                )
+            }
+
+
+        correct = set(raw_correct)
+
+
+        if not correct.issubset(valid_option_sequences):
+
+            return {
+                "status": "cannot_evaluate",
+                "feedback": (
+                    "The verified answer references options "
+                    "that are not part of this question."
+                )
+            }
 
 
         correctly_selected = (
@@ -222,9 +271,8 @@ class QuestionGroupEvaluationService:
             status = "correct"
 
             feedback = (
-                "Correct. You selected all "
-                "of the pairs whose greatest "
-                "common factor is 1."
+                "Correct. You selected all verified "
+                "correct options."
             )
 
 
@@ -399,7 +447,9 @@ class QuestionGroupEvaluationService:
 
                 concept_diagnoses=(
                     concept_diagnoses
-                )
+                ),
+
+                idempotency_key=idempotency_key
             )
         )
 
