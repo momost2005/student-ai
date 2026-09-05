@@ -1,4 +1,4 @@
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, func
 from sqlalchemy.orm import Session
 
 from app.models.curriculum import (
@@ -503,3 +503,80 @@ class CurriculumRepository:
         db.refresh(attempt)
 
         return attempt
+
+    def get_student_lesson_attempts(
+        self,
+        db: Session,
+        student_id: int,
+        curriculum_id: int,
+        lesson_number: str
+    ) -> list[PracticeAttempt]:
+
+        statement = (
+            select(
+                PracticeAttempt
+            )
+            .where(
+                PracticeAttempt.student_id
+                == student_id,
+
+                PracticeAttempt.curriculum_id
+                == curriculum_id,
+
+                PracticeAttempt.lesson_number
+                == lesson_number
+            )
+            .order_by(
+                PracticeAttempt.created_at,
+                PracticeAttempt.id
+            )
+        )
+
+        return list(
+            db.execute(
+                statement
+            )
+            .scalars()
+            .all()
+        )
+
+    def count_lesson_practice_questions(
+        self,
+        db: Session,
+        curriculum_id: int,
+        lesson_number: str
+    ) -> int:
+
+        statement = (
+            select(
+                func.count(
+                    CurriculumChunk.id
+                )
+            )
+            .join(
+                CurriculumPage,
+                CurriculumChunk.page_id
+                == CurriculumPage.id
+            )
+            .join(
+                CurriculumDocument,
+                CurriculumPage.document_id
+                == CurriculumDocument.id
+            )
+            .where(
+                CurriculumDocument.curriculum_id
+                == curriculum_id,
+
+                CurriculumChunk.lesson_number
+                == lesson_number,
+
+                CurriculumChunk.chunk_type
+                == "practice_question"
+            )
+        )
+
+        return (
+            db.execute(
+                statement
+            ).scalar_one()
+        )
