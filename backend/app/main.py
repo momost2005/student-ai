@@ -13,6 +13,7 @@ from app.db.database import get_db
 from app.repositories.system_settings_repository import (
     SystemSettingsRepository
 )
+from app.api.practice import router as practice_router
 
 app = FastAPI(
     title="Student AI API",
@@ -33,6 +34,9 @@ ai_gateway = AIGateway(
     registry=ai_registry,
     settings=ai_settings
 )
+
+
+app.include_router(practice_router)
 
 
 # Request Models
