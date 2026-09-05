@@ -18,6 +18,7 @@ class PracticeEvaluationService:
         self.repository = repository
         self.ai_gateway = ai_gateway
 
+
     def _parse_evaluation(
         self,
         response: str
@@ -47,6 +48,7 @@ class PracticeEvaluationService:
                     .strip()
                 )
 
+
         allowed_statuses = {
             "correct",
             "partial",
@@ -58,13 +60,46 @@ class PracticeEvaluationService:
 
         return status, feedback
 
+
     def evaluate(
         self,
         db: Session,
+        student_id: int,
+        curriculum_id: int,
         chunk_id: int,
-        question: str,
         student_answer: str
     ) -> dict:
+
+        # -----------------------------------------
+        # 1. Get trusted question from database
+        # -----------------------------------------
+
+        chunk = (
+            self.repository
+            .get_chunk_for_curriculum(
+                db=db,
+                chunk_id=chunk_id,
+                curriculum_id=curriculum_id
+            )
+        )
+
+        if not chunk:
+
+            return {
+                "status":
+                    "question_not_found",
+
+                "feedback":
+                    (
+                        "The requested practice "
+                        "question was not found."
+                    )
+            }
+
+
+        # -----------------------------------------
+        # 2. Get verified reference solution
+        # -----------------------------------------
 
         solution = (
             self.repository
@@ -77,27 +112,54 @@ class PracticeEvaluationService:
 
         if not solution:
 
+            attempt = (
+                self.repository
+                .save_practice_attempt(
+                    db=db,
+                    student_id=student_id,
+                    curriculum_id=curriculum_id,
+                    chunk=chunk,
+                    student_answer=student_answer,
+                    reference_answer=None,
+                    evaluation_status=(
+                        "cannot_evaluate"
+                    ),
+                    feedback=(
+                        "No verified reference "
+                        "answer is available for "
+                        "this question."
+                    ),
+                    solution_source=None,
+                    ai_provider=None,
+                    ai_model=None
+                )
+            )
+
             return {
                 "status":
                     "cannot_evaluate",
-
-                "is_correct":
-                    None,
 
                 "feedback":
                     (
                         "No verified reference "
                         "answer is available for "
                         "this question."
-                    )
+                    ),
+
+                "attempt_id":
+                    attempt.id
             }
 
+
+        # -----------------------------------------
+        # 3. Build evaluation prompt
+        # -----------------------------------------
 
         prompt = f"""
 You are evaluating a student's mathematics answer.
 
 QUESTION:
-{question}
+{chunk.content}
 
 VERIFIED REFERENCE ANSWER:
 {solution.final_answer}
@@ -124,6 +186,10 @@ FEEDBACK: <feedback>
 """
 
 
+        # -----------------------------------------
+        # 4. Ask active AI provider to evaluate
+        # -----------------------------------------
+
         (
             provider_name,
             model_name,
@@ -133,16 +199,62 @@ FEEDBACK: <feedback>
             prompt=prompt
         )
 
+
         evaluation_status, feedback = (
             self._parse_evaluation(
                 response
             )
         )
 
+
+        # -----------------------------------------
+        # 5. Save student attempt
+        # -----------------------------------------
+
+        attempt = (
+            self.repository
+            .save_practice_attempt(
+                db=db,
+                student_id=student_id,
+                curriculum_id=curriculum_id,
+                chunk=chunk,
+                student_answer=student_answer,
+                reference_answer=(
+                    solution.final_answer
+                ),
+                evaluation_status=(
+                    evaluation_status
+                ),
+                feedback=feedback,
+                solution_source=(
+                    solution.solution_source
+                ),
+                ai_provider=provider_name,
+                ai_model=model_name
+            )
+        )
+
+
+        # -----------------------------------------
+        # 6. Return evaluation
+        # -----------------------------------------
+
         return {
-            "status": evaluation_status,
-            "feedback": feedback,
-            "provider": provider_name,
-            "model": model_name,
-            "solution_source": solution.solution_source
+            "attempt_id":
+                attempt.id,
+
+            "status":
+                evaluation_status,
+
+            "feedback":
+                feedback,
+
+            "provider":
+                provider_name,
+
+            "model":
+                model_name,
+
+            "solution_source":
+                solution.solution_source
         }

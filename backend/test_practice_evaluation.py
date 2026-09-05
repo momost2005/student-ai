@@ -51,12 +51,6 @@ try:
     )
 
 
-    question = """
-Determine the prime factorization of each number.
-Then find the GCF of 45, 135, and 180.
-"""
-
-
     student_answer = """
 GCF = 15
 """
@@ -64,8 +58,13 @@ GCF = 15
 
     result = evaluation_service.evaluate(
         db=db,
+
+        student_id=1,
+
+        curriculum_id=1,
+
         chunk_id=160,
-        question=question,
+
         student_answer=student_answer
     )
 

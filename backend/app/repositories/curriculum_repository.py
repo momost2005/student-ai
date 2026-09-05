@@ -17,7 +17,8 @@ from app.models.curriculum import (
     CurriculumDocument,
     CurriculumPage,
     CurriculumSection,
-    CurriculumQuestionSolution
+    CurriculumQuestionSolution,
+    PracticeAttempt
 )
 
 class CurriculumRepository:
@@ -400,3 +401,105 @@ class CurriculumRepository:
         return db.execute(
             statement
         ).scalar_one_or_none()
+
+    def get_chunk_for_curriculum(
+        self,
+        db: Session,
+        chunk_id: int,
+        curriculum_id: int
+    ) -> CurriculumChunk | None:
+
+        statement = (
+            select(
+                CurriculumChunk
+            )
+            .join(
+                CurriculumPage,
+                CurriculumChunk.page_id
+                == CurriculumPage.id
+            )
+            .join(
+                CurriculumDocument,
+                CurriculumPage.document_id
+                == CurriculumDocument.id
+            )
+            .where(
+                CurriculumChunk.id
+                == chunk_id,
+
+                CurriculumDocument.curriculum_id
+                == curriculum_id
+            )
+        )
+
+        return db.execute(
+            statement
+        ).scalar_one_or_none()
+
+    def save_practice_attempt(
+        self,
+        db: Session,
+        student_id: int,
+        curriculum_id: int,
+        chunk: CurriculumChunk,
+        student_answer: str,
+        reference_answer: str | None,
+        evaluation_status: str,
+        feedback: str | None,
+        solution_source: str | None,
+        ai_provider: str | None,
+        ai_model: str | None
+    ) -> PracticeAttempt:
+
+        attempt = PracticeAttempt(
+            student_id=student_id,
+            curriculum_id=curriculum_id,
+
+            chunk_id=chunk.id,
+
+            question_number=(
+                chunk.question_number
+            ),
+
+            question_content=(
+                chunk.content
+            ),
+
+            lesson_number=(
+                chunk.lesson_number
+            ),
+
+            lesson_title=(
+                chunk.lesson_title
+            ),
+
+            student_answer=(
+                student_answer
+            ),
+
+            reference_answer=(
+                reference_answer
+            ),
+
+            evaluation_status=(
+                evaluation_status
+            ),
+
+            feedback=feedback,
+
+            solution_source=(
+                solution_source
+            ),
+
+            ai_provider=ai_provider,
+
+            ai_model=ai_model
+        )
+
+        db.add(attempt)
+
+        db.commit()
+
+        db.refresh(attempt)
+
+        return attempt
