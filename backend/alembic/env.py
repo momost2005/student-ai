@@ -10,16 +10,8 @@ import os
 from dotenv import load_dotenv
 
 
-# -------------------------------------------------
-# Alembic configuration
-# -------------------------------------------------
-
 config = context.config
 
-
-# -------------------------------------------------
-# Environment variables
-# -------------------------------------------------
 
 load_dotenv()
 
@@ -42,10 +34,6 @@ config.set_main_option(
 )
 
 
-# -------------------------------------------------
-# Logging
-# -------------------------------------------------
-
 if (
     config.config_file_name
     is not None
@@ -55,10 +43,6 @@ if (
         config.config_file_name
     )
 
-
-# -------------------------------------------------
-# SQLAlchemy metadata
-# -------------------------------------------------
 
 from app.db.database import Base
 
@@ -85,7 +69,8 @@ from app.models.curriculum import (
 
 from app.models.question_group import (
     CurriculumQuestionGroup,
-    CurriculumQuestionGroupChunk
+    CurriculumQuestionGroupChunk,
+    CurriculumQuestionGroupSolution
 )
 
 
@@ -94,14 +79,15 @@ from app.models.practice_attempt_question import (
 )
 
 
+from app.models.question_group_concept import (
+    CurriculumQuestionGroupConcept
+)
+
+
 target_metadata = (
     Base.metadata
 )
 
-
-# -------------------------------------------------
-# Offline migrations
-# -------------------------------------------------
 
 def run_migrations_offline() -> None:
 
@@ -124,10 +110,6 @@ def run_migrations_offline() -> None:
 
         context.run_migrations()
 
-
-# -------------------------------------------------
-# Online migrations
-# -------------------------------------------------
 
 def run_migrations_online() -> None:
 
@@ -155,10 +137,6 @@ def run_migrations_online() -> None:
 
             context.run_migrations()
 
-
-# -------------------------------------------------
-# Run
-# -------------------------------------------------
 
 if context.is_offline_mode():
 

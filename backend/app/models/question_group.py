@@ -153,3 +153,67 @@ class CurriculumQuestionGroupChunk(Base):
         default=datetime.utcnow,
         nullable=False
     )
+
+
+class CurriculumQuestionGroupSolution(Base):
+
+    __tablename__ = (
+        "curriculum_question_group_solutions"
+    )
+
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True
+    )
+
+
+    question_group_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "curriculum_question_groups.id",
+            ondelete="CASCADE"
+        ),
+        nullable=False,
+        unique=True,
+        index=True
+    )
+
+
+    # JSON stored as text for now.
+    #
+    # Example:
+    #
+    # {
+    #   "correct_option_sequences": [2, 3, 4, 6, 8]
+    # }
+    #
+    answer_payload: Mapped[str] = mapped_column(
+        Text,
+        nullable=False
+    )
+
+
+    explanation: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True
+    )
+
+
+    solution_source: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False
+    )
+
+
+    verification_status: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="pending"
+    )
+
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False
+    )
