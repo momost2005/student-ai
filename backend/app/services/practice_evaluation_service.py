@@ -1,3 +1,5 @@
+import json
+
 from sqlalchemy.orm import Session
 
 from app.ai.gateway import AIGateway
@@ -21,32 +23,75 @@ class PracticeEvaluationService:
 
     def _parse_evaluation(
         self,
-        response: str
-    ) -> tuple[str, str]:
+        response: str,
+        expected_concept_codes: list[str]
+    ) -> tuple[
+        str,
+        str,
+        dict[str, dict]
+    ]:
 
-        status = "unknown"
-        feedback = response.strip()
+        text = response.strip()
 
-        for line in response.splitlines():
 
-            line = line.strip()
+        # -----------------------------------------
+        # Remove Markdown code fences if the model
+        # unexpectedly returned them.
+        # -----------------------------------------
 
-            if line.startswith("STATUS:"):
+        if text.startswith("```"):
 
-                status = (
-                    line
-                    .replace("STATUS:", "")
-                    .strip()
-                    .lower()
+            lines = text.splitlines()
+
+            if lines:
+                lines = lines[1:]
+
+            if (
+                lines
+                and
+                lines[-1].strip().startswith(
+                    "```"
                 )
+            ):
+                lines = lines[:-1]
 
-            elif line.startswith("FEEDBACK:"):
+            text = "\n".join(
+                lines
+            ).strip()
 
-                feedback = (
-                    line
-                    .replace("FEEDBACK:", "")
-                    .strip()
+
+        try:
+
+            data = json.loads(
+                text
+            )
+
+        except json.JSONDecodeError:
+
+            return (
+                "unknown",
+                (
+                    "The evaluation response "
+                    "could not be processed."
+                ),
+                {}
+            )
+
+
+        # -----------------------------------------
+        # Validate overall status
+        # -----------------------------------------
+
+        status = (
+            str(
+                data.get(
+                    "status",
+                    "unknown"
                 )
+            )
+            .strip()
+            .lower()
+        )
 
 
         allowed_statuses = {
@@ -55,10 +100,155 @@ class PracticeEvaluationService:
             "incorrect"
         }
 
+
         if status not in allowed_statuses:
+
             status = "unknown"
 
-        return status, feedback
+
+        feedback = str(
+            data.get(
+                "feedback",
+                ""
+            )
+        ).strip()
+
+
+        # -----------------------------------------
+        # Validate concept diagnoses
+        # -----------------------------------------
+
+        allowed_diagnosis_statuses = {
+            "demonstrated",
+            "needs_review",
+            "insufficient_evidence"
+        }
+
+
+        concept_diagnoses = {}
+
+
+        raw_concepts = data.get(
+            "concepts",
+            []
+        )
+
+
+        if not isinstance(
+            raw_concepts,
+            list
+        ):
+
+            raw_concepts = []
+
+
+        for item in raw_concepts:
+
+            if not isinstance(
+                item,
+                dict
+            ):
+                continue
+
+
+            concept_code = (
+                str(
+                    item.get(
+                        "concept_code",
+                        ""
+                    )
+                )
+                .strip()
+            )
+
+
+            # Do not allow the AI to invent
+            # curriculum concepts.
+            if (
+                concept_code
+                not in expected_concept_codes
+            ):
+                continue
+
+
+            diagnosis_status = (
+                str(
+                    item.get(
+                        "status",
+                        ""
+                    )
+                )
+                .strip()
+                .lower()
+            )
+
+
+            if (
+                diagnosis_status
+                not in
+                allowed_diagnosis_statuses
+            ):
+
+                diagnosis_status = (
+                    "insufficient_evidence"
+                )
+
+
+            reason = str(
+                item.get(
+                    "reason",
+                    ""
+                )
+            ).strip()
+
+
+            concept_diagnoses[
+                concept_code
+            ] = {
+                "status":
+                    diagnosis_status,
+
+                "reason":
+                    reason
+            }
+
+
+        # -----------------------------------------
+        # Every expected concept must get a result.
+        #
+        # Missing diagnosis does NOT mean weak.
+        # -----------------------------------------
+
+        for concept_code in (
+            expected_concept_codes
+        ):
+
+            if (
+                concept_code
+                not in concept_diagnoses
+            ):
+
+                concept_diagnoses[
+                    concept_code
+                ] = {
+                    "status":
+                        "insufficient_evidence",
+
+                    "reason":
+                        (
+                            "The student answer "
+                            "does not provide enough "
+                            "evidence to assess this "
+                            "concept."
+                        )
+                }
+
+
+        return (
+            status,
+            feedback,
+            concept_diagnoses
+        )
 
 
     def evaluate(
@@ -109,6 +299,36 @@ class PracticeEvaluationService:
             )
         )
 
+        concepts = (
+            self.repository
+            .get_chunk_concepts(
+                db=db,
+                chunk_id=chunk_id
+            )
+        )
+
+
+        concept_lines = []
+
+        for concept in concepts:
+
+            concept_lines.append(
+                (
+                    f"- {concept.code}: "
+                    f"{concept.name}"
+                )
+            )
+
+
+        concept_context = "\n".join(
+            concept_lines
+        )
+
+
+        expected_concept_codes = [
+            concept.code
+            for concept in concepts
+        ]
 
         if not solution:
 
@@ -170,19 +390,66 @@ VERIFIED SOLUTION STEPS:
 STUDENT ANSWER:
 {student_answer}
 
-Rules:
-- Judge only against the verified reference answer.
-- Do not create a different answer key.
-- Accept mathematically equivalent answers.
-- If the final answer is correct but reasoning is incomplete,
-  explain what is missing.
-- If incorrect, identify the first important mistake.
-- Keep the feedback concise and student-friendly.
+CURRICULUM CONCEPTS ASSESSED BY THIS QUESTION:
+{concept_context}
 
-Return exactly this format:
+Evaluate the overall student answer and diagnose
+the evidence for EACH listed curriculum concept.
 
-STATUS: correct | partial | incorrect
-FEEDBACK: <feedback>
+Important rules:
+
+1. Judge the mathematical answer only against the
+   verified reference answer and verified solution.
+
+2. Do not create a different answer key.
+
+3. Accept mathematically equivalent answers.
+
+4. The overall status must be exactly one of:
+   correct
+   partial
+   incorrect
+
+5. For every listed curriculum concept, assign
+   exactly one diagnosis status:
+
+   demonstrated
+   needs_review
+   insufficient_evidence
+
+6. "needs_review" means the student's answer gives
+   evidence of a misconception or meaningful error
+   related specifically to that concept.
+
+7. Do NOT mark a concept "needs_review" merely because
+   the overall answer is incorrect.
+
+8. Use "insufficient_evidence" when the student did not
+   show enough work to determine understanding of that
+   concept.
+
+9. Use "demonstrated" only when the student's answer
+   provides positive evidence of understanding.
+
+10. Do not invent additional concept codes.
+
+11. Return valid JSON only.
+    Do not use Markdown.
+    Do not use code fences.
+
+Return exactly this JSON structure:
+
+{{
+    "status": "correct | partial | incorrect",
+    "feedback": "short student-friendly feedback",
+    "concepts": [
+        {{
+            "concept_code": "exact supplied concept code",
+            "status": "demonstrated | needs_review | insufficient_evidence",
+            "reason": "short evidence-based reason"
+        }}
+    ]
+}}
 """
 
 
@@ -200,9 +467,14 @@ FEEDBACK: <feedback>
         )
 
 
-        evaluation_status, feedback = (
-            self._parse_evaluation(
-                response
+        (
+            evaluation_status,
+            feedback,
+            concept_diagnoses
+        ) = self._parse_evaluation(
+            response=response,
+            expected_concept_codes=(
+                expected_concept_codes
             )
         )
 
@@ -230,7 +502,10 @@ FEEDBACK: <feedback>
                     solution.solution_source
                 ),
                 ai_provider=provider_name,
-                ai_model=model_name
+                ai_model=model_name,
+                concept_diagnoses=(
+                    concept_diagnoses
+                )
             )
         )
 
@@ -256,5 +531,8 @@ FEEDBACK: <feedback>
                 model_name,
 
             "solution_source":
-                solution.solution_source
+                solution.solution_source,
+
+            "concept_diagnoses":
+                concept_diagnoses
         }

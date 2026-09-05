@@ -604,3 +604,23 @@ class PracticeAttemptConcept(Base):
         default=datetime.utcnow,
         nullable=False
     )
+
+    diagnosis_status: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True
+    )
+
+    diagnosis_reason: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True
+    )
+
+    diagnosis_source: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True
+    )
+
+    diagnosed_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True
+    )

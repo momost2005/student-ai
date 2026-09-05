@@ -1,5 +1,6 @@
 from sqlalchemy import delete, select, func
 from sqlalchemy.orm import Session
+from datetime import datetime
 
 from app.models.curriculum import (
     CurriculumDocument,
@@ -21,6 +22,7 @@ from app.models.curriculum import (
     PracticeAttempt,
     CurriculumConcept,
     CurriculumChunkConcept,
+    PracticeAttempt,
     PracticeAttemptConcept
 )
 
@@ -451,7 +453,8 @@ class CurriculumRepository:
         feedback: str | None,
         solution_source: str | None,
         ai_provider: str | None,
-        ai_model: str | None
+        ai_model: str | None,
+        concept_diagnoses: dict[str, dict] | None = None
     ) -> PracticeAttempt:
 
         attempt = PracticeAttempt(
@@ -516,6 +519,17 @@ class CurriculumRepository:
 
         for concept in concepts:
 
+            diagnosis = None
+
+            if concept_diagnoses:
+
+                diagnosis = (
+                    concept_diagnoses.get(
+                        concept.code
+                    )
+                )
+
+
             attempt_concept = (
                 PracticeAttemptConcept(
                     attempt_id=attempt.id,
@@ -526,9 +540,35 @@ class CurriculumRepository:
 
                     concept_name=concept.name,
 
-                    source="question_mapping"
+                    source="question_mapping",
+
+                    diagnosis_status=(
+                        diagnosis["status"]
+                        if diagnosis
+                        else None
+                    ),
+
+                    diagnosis_reason=(
+                        diagnosis["reason"]
+                        if diagnosis
+                        else None
+                    ),
+
+                    diagnosis_source=(
+                        "ai_evaluation"
+                        if diagnosis
+                        else None
+                    ),
+
+                    diagnosed_at=(
+                        datetime.utcnow()
+                        if diagnosis
+                        else None
+                    )
                 )
             )
+
+            db.add(attempt_concept)
 
         db.add(attempt_concept)
 
@@ -646,4 +686,44 @@ class CurriculumRepository:
             )
             .scalars()
             .all()
+        )
+    def get_student_lesson_concept_diagnoses(
+        self,
+        db: Session,
+        student_id: int,
+        curriculum_id: int,
+        lesson_number: str
+    ) -> list[tuple[PracticeAttemptConcept, PracticeAttempt]]:
+
+        statement = (
+            select(
+                PracticeAttemptConcept,
+                PracticeAttempt
+            )
+            .join(
+                PracticeAttempt,
+                PracticeAttemptConcept.attempt_id
+                == PracticeAttempt.id
+            )
+            .where(
+                PracticeAttempt.student_id
+                == student_id,
+
+                PracticeAttempt.curriculum_id
+                == curriculum_id,
+
+                PracticeAttempt.lesson_number
+                == lesson_number
+            )
+            .order_by(
+                PracticeAttempt.created_at,
+                PracticeAttempt.id,
+                PracticeAttemptConcept.id
+            )
+        )
+
+        return list(
+            db.execute(
+                statement
+            ).all()
         )
