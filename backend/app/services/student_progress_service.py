@@ -1,12 +1,19 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import (
+    Session
+)
 
 from app.repositories.curriculum_repository import (
     CurriculumRepository
 )
 
+from app.services.logical_question_service import (
+    LogicalQuestionService
+)
+
 from app.services.mastery_settings import (
     MasterySettings
 )
+
 
 class StudentProgressService:
 
@@ -20,11 +27,19 @@ class StudentProgressService:
     def __init__(
         self,
         repository: CurriculumRepository,
-        mastery_settings: MasterySettings
+        mastery_settings: MasterySettings,
+        logical_question_service: LogicalQuestionService
     ):
 
         self.repository = repository
-        self.mastery_settings = mastery_settings
+
+        self.mastery_settings = (
+            mastery_settings
+        )
+
+        self.logical_question_service = (
+            logical_question_service
+        )
 
 
     def get_lesson_progress(
@@ -34,6 +49,10 @@ class StudentProgressService:
         curriculum_id: int,
         lesson_number: str
     ) -> dict:
+
+        # -----------------------------------------
+        # 1. Load student attempts
+        # -----------------------------------------
 
         attempts = (
             self.repository
@@ -58,10 +77,15 @@ class StudentProgressService:
             attempts
         )
 
+
         assessed_count = len(
             assessed_attempts
         )
 
+
+        # -----------------------------------------
+        # 2. Historical attempt counts
+        # -----------------------------------------
 
         correct_attempts = sum(
             1
@@ -70,12 +94,14 @@ class StudentProgressService:
             == "correct"
         )
 
+
         partial_attempts = sum(
             1
             for attempt in assessed_attempts
             if attempt.evaluation_status
             == "partial"
         )
+
 
         incorrect_attempts = sum(
             1
@@ -85,11 +111,8 @@ class StudentProgressService:
         )
 
 
-        # -----------------------------------------
-        # Historical accuracy across all attempts
-        # -----------------------------------------
-
         attempt_accuracy = 0.0
+
 
         if assessed_count > 0:
 
@@ -101,8 +124,11 @@ class StudentProgressService:
 
 
         # -----------------------------------------
-        # Keep only latest assessed attempt
-        # for each question
+        # 3. Keep latest assessed attempt for each
+        #    LOGICAL question.
+        #
+        #    Several chunks may now represent one
+        #    question group.
         # -----------------------------------------
 
         latest_by_question = {}
@@ -110,21 +136,18 @@ class StudentProgressService:
 
         for attempt in assessed_attempts:
 
-            if attempt.chunk_id is not None:
-
-                question_key = (
-                    f"chunk:{attempt.chunk_id}"
+            question_key = (
+                self.logical_question_service
+                .get_question_key_for_attempt(
+                    db=db,
+                    attempt=attempt
                 )
-
-            else:
-
-                question_key = (
-                    f"snapshot:"
-                    f"{attempt.question_number}:"
-                    f"{attempt.question_content}"
-                )
+            )
 
 
+            # Attempts are already ordered by
+            # created_at / id, so the latest one
+            # replaces the previous value.
             latest_by_question[
                 question_key
             ] = attempt
@@ -139,12 +162,118 @@ class StudentProgressService:
             latest_attempts
         )
 
+
+        # -----------------------------------------
+        # 4. Count LOGICAL curriculum questions
+        # -----------------------------------------
+
+        total_available_questions = (
+            self.logical_question_service
+            .count_lesson_logical_practice_questions(
+                db=db,
+                curriculum_id=curriculum_id,
+                lesson_number=lesson_number
+            )
+        )
+
+
+        # -----------------------------------------
+        # 5. Coverage
+        # -----------------------------------------
+
+        coverage_percent = 0.0
+
+
+        if total_available_questions > 0:
+
+            coverage_percent = (
+                unique_questions
+                / total_available_questions
+                * 100
+            )
+
+
+        # -----------------------------------------
+        # 6. Current state
+        # -----------------------------------------
+
+        current_correct = sum(
+            1
+            for attempt in latest_attempts
+            if attempt.evaluation_status
+            == "correct"
+        )
+
+
+        current_partial = sum(
+            1
+            for attempt in latest_attempts
+            if attempt.evaluation_status
+            == "partial"
+        )
+
+
+        current_incorrect = sum(
+            1
+            for attempt in latest_attempts
+            if attempt.evaluation_status
+            == "incorrect"
+        )
+
+
+        current_accuracy = 0.0
+
+
+        if unique_questions > 0:
+
+            current_accuracy = (
+                current_correct
+                / unique_questions
+                * 100
+            )
+
+
+        # -----------------------------------------
+        # 7. Observed performance
+        #
+        # correct   = 1.0
+        # partial   = 0.5
+        # incorrect = 0.0
+        # -----------------------------------------
+
+        observed_score = 0.0
+
+
+        if unique_questions > 0:
+
+            observed_points = (
+                current_correct
+                +
+                (
+                    current_partial
+                    * 0.5
+                )
+            )
+
+
+            observed_score = (
+                observed_points
+                / unique_questions
+                * 100
+            )
+
+
+        # -----------------------------------------
+        # 8. Mastery evidence settings
+        # -----------------------------------------
+
         minimum_unique_questions = (
             self.mastery_settings
             .get_minimum_unique_questions(
                 db
             )
         )
+
 
         minimum_coverage_percent = (
             self.mastery_settings
@@ -153,6 +282,7 @@ class StudentProgressService:
             )
         )
 
+
         proficient_threshold = (
             self.mastery_settings
             .get_proficient_threshold(
@@ -160,12 +290,14 @@ class StudentProgressService:
             )
         )
 
+
         strong_threshold = (
             self.mastery_settings
             .get_strong_threshold(
                 db
             )
         )
+
 
         has_enough_evidence = (
             unique_questions
@@ -176,6 +308,11 @@ class StudentProgressService:
             coverage_percent
             >= minimum_coverage_percent
         )
+
+
+        # -----------------------------------------
+        # 9. Mastery classification
+        # -----------------------------------------
 
         if not has_enough_evidence:
 
@@ -189,6 +326,7 @@ class StudentProgressService:
                 "mastery can be estimated."
             )
 
+
         elif observed_score >= strong_threshold:
 
             mastery_status = "strong"
@@ -199,9 +337,12 @@ class StudentProgressService:
                 "lesson evidence."
             )
 
+
         elif observed_score >= proficient_threshold:
 
-            mastery_status = "proficient"
+            mastery_status = (
+                "proficient"
+            )
 
             mastery_reason = (
                 "The student demonstrates "
@@ -209,9 +350,12 @@ class StudentProgressService:
                 "lesson evidence."
             )
 
+
         else:
 
-            mastery_status = "developing"
+            mastery_status = (
+                "developing"
+            )
 
             mastery_reason = (
                 "There is enough evidence "
@@ -220,74 +364,10 @@ class StudentProgressService:
                 "improvement."
             )
 
-        total_available_questions = (
-            self.repository
-            .count_lesson_practice_questions(
-                db=db,
-                curriculum_id=curriculum_id,
-                lesson_number=lesson_number
-            )
-        )
 
-        coverage_percent = 0.0
-
-        if total_available_questions > 0:
-
-            coverage_percent = (
-                unique_questions
-                / total_available_questions
-                * 100
-            )
-
-        current_correct = sum(
-            1
-            for attempt in latest_attempts
-            if attempt.evaluation_status
-            == "correct"
-        )
-
-        current_partial = sum(
-            1
-            for attempt in latest_attempts
-            if attempt.evaluation_status
-            == "partial"
-        )
-
-        current_incorrect = sum(
-            1
-            for attempt in latest_attempts
-            if attempt.evaluation_status
-            == "incorrect"
-        )
-
-        observed_score = 0.0
-
-        if unique_questions > 0:
-
-            observed_points = (
-                current_correct
-                + (
-                    current_partial
-                    * 0.5
-                )
-            )
-
-            observed_score = (
-                observed_points
-                / unique_questions
-                * 100
-            )
-
-        current_accuracy = 0.0
-
-        if unique_questions > 0:
-
-            current_accuracy = (
-                current_correct
-                / unique_questions
-                * 100
-            )
-
+        # -----------------------------------------
+        # 10. Result
+        # -----------------------------------------
 
         return {
             "student_id":

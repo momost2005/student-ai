@@ -14,6 +14,10 @@ from app.services.concept_progress_settings import (
     ConceptProgressSettings
 )
 
+from app.services.logical_question_service import (
+    LogicalQuestionService
+)
+
 from app.services.student_concept_progress_service import (
     StudentConceptProgressService
 )
@@ -23,6 +27,10 @@ db = SessionLocal()
 
 
 try:
+
+    # -------------------------------------------------
+    # Repositories
+    # -------------------------------------------------
 
     curriculum_repository = (
         CurriculumRepository()
@@ -34,6 +42,10 @@ try:
     )
 
 
+    # -------------------------------------------------
+    # Settings
+    # -------------------------------------------------
+
     concept_settings = (
         ConceptProgressSettings(
             repository=(
@@ -43,6 +55,19 @@ try:
     )
 
 
+    # -------------------------------------------------
+    # Logical question identity
+    # -------------------------------------------------
+
+    logical_question_service = (
+        LogicalQuestionService()
+    )
+
+
+    # -------------------------------------------------
+    # Concept progress service
+    # -------------------------------------------------
+
     service = (
         StudentConceptProgressService(
             repository=(
@@ -50,10 +75,17 @@ try:
             ),
             settings=(
                 concept_settings
+            ),
+            logical_question_service=(
+                logical_question_service
             )
         )
     )
 
+
+    # -------------------------------------------------
+    # Test
+    # -------------------------------------------------
 
     results = (
         service
@@ -65,6 +97,10 @@ try:
         )
     )
 
+
+    # -------------------------------------------------
+    # Output
+    # -------------------------------------------------
 
     print()
     print("=" * 80)
@@ -88,7 +124,10 @@ try:
 
 
         print()
-        print("--- Historical Activity ---")
+        print(
+            "--- Historical Activity ---"
+        )
+
 
         print(
             f"Total Occurrences: "
@@ -96,7 +135,7 @@ try:
         )
 
         print(
-            f"Unique Questions Seen: "
+            f"Unique Logical Questions Seen: "
             f"{item['unique_questions_seen']}"
         )
 
@@ -117,10 +156,13 @@ try:
 
 
         print()
-        print("--- Current Evidence ---")
+        print(
+            "--- Current Evidence ---"
+        )
+
 
         print(
-            f"Unique Assessed Questions: "
+            f"Unique Logical Assessed Questions: "
             f"{item['unique_assessed_questions']}"
         )
 
@@ -141,7 +183,10 @@ try:
 
 
         print()
-        print("--- Latest Evidence ---")
+        print(
+            "--- Latest Evidence ---"
+        )
+
 
         print(
             f"Latest Assessed Status: "
@@ -155,7 +200,10 @@ try:
 
 
         print()
-        print("--- Classification ---")
+        print(
+            "--- Classification ---"
+        )
+
 
         print(
             f"Has Enough Evidence: "

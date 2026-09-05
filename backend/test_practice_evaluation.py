@@ -20,6 +20,10 @@ from app.repositories.curriculum_repository import (
     CurriculumRepository
 )
 
+from app.repositories.practice_attempt_question_repository import (
+    PracticeAttemptQuestionRepository
+)
+
 from app.repositories.system_settings_repository import (
     SystemSettingsRepository
 )
@@ -32,9 +36,7 @@ from app.services.practice_evaluation_service import (
 if len(sys.argv) < 3:
 
     print()
-    print(
-        "Usage:"
-    )
+    print("Usage:")
 
     print(
         'python test_practice_evaluation.py '
@@ -51,6 +53,7 @@ try:
     chunk_id = int(
         sys.argv[1]
     )
+
 
 except ValueError:
 
@@ -101,6 +104,11 @@ try:
     )
 
 
+    question_identity_repository = (
+        PracticeAttemptQuestionRepository()
+    )
+
+
     evaluation_service = (
         PracticeEvaluationService(
             repository=(
@@ -108,6 +116,9 @@ try:
             ),
             ai_gateway=(
                 ai_gateway
+            ),
+            question_identity_repository=(
+                question_identity_repository
             )
         )
     )
@@ -140,6 +151,16 @@ try:
     print(
         f"Student Answer: "
         f"{student_answer}"
+    )
+
+
+    print()
+    print("--- Question Identity ---")
+
+
+    print(
+        f"Logical Question Key: "
+        f"{result.get('logical_question_key')}"
     )
 
 

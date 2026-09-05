@@ -5,6 +5,10 @@ from sqlalchemy import pool
 
 from alembic import context
 
+import os
+
+from dotenv import load_dotenv
+
 
 # -------------------------------------------------
 # Alembic configuration
@@ -16,11 +20,6 @@ config = context.config
 # -------------------------------------------------
 # Environment variables
 # -------------------------------------------------
-
-import os
-
-from dotenv import load_dotenv
-
 
 load_dotenv()
 
@@ -59,16 +58,15 @@ if (
 
 # -------------------------------------------------
 # SQLAlchemy metadata
-#
-# All model modules must be imported here so
-# Alembic autogenerate can discover their tables.
 # -------------------------------------------------
 
 from app.db.database import Base
 
+
 from app.models.system_setting import (
     SystemSetting
 )
+
 
 from app.models.curriculum import (
     Curriculum,
@@ -84,9 +82,15 @@ from app.models.curriculum import (
     PracticeAttemptConcept
 )
 
+
 from app.models.question_group import (
     CurriculumQuestionGroup,
     CurriculumQuestionGroupChunk
+)
+
+
+from app.models.practice_attempt_question import (
+    PracticeAttemptQuestionIdentity
 )
 
 

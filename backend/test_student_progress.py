@@ -1,19 +1,25 @@
-from app.db.database import SessionLocal
+from app.db.database import (
+    SessionLocal
+)
 
 from app.repositories.curriculum_repository import (
     CurriculumRepository
-)
-
-from app.services.student_progress_service import (
-    StudentProgressService
 )
 
 from app.repositories.system_settings_repository import (
     SystemSettingsRepository
 )
 
+from app.services.logical_question_service import (
+    LogicalQuestionService
+)
+
 from app.services.mastery_settings import (
     MasterySettings
+)
+
+from app.services.student_progress_service import (
+    StudentProgressService
 )
 
 
@@ -22,13 +28,15 @@ db = SessionLocal()
 
 try:
 
-    repository = (
+    curriculum_repository = (
         CurriculumRepository()
     )
+
 
     system_repository = (
         SystemSettingsRepository()
     )
+
 
     mastery_settings = (
         MasterySettings(
@@ -36,10 +44,23 @@ try:
         )
     )
 
+
+    logical_question_service = (
+        LogicalQuestionService()
+    )
+
+
     progress_service = (
         StudentProgressService(
-            repository=repository,
-            mastery_settings=mastery_settings
+            repository=(
+                curriculum_repository
+            ),
+            mastery_settings=(
+                mastery_settings
+            ),
+            logical_question_service=(
+                logical_question_service
+            )
         )
     )
 
@@ -59,6 +80,7 @@ try:
     print("=" * 80)
     print("LESSON PROGRESS")
     print("=" * 80)
+
 
     for key, value in progress.items():
 

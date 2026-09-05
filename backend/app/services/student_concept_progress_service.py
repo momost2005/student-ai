@@ -8,6 +8,10 @@ from app.services.concept_progress_settings import (
     ConceptProgressSettings
 )
 
+from app.services.logical_question_service import (
+    LogicalQuestionService
+)
+
 
 class StudentConceptProgressService:
 
@@ -20,28 +24,15 @@ class StudentConceptProgressService:
     def __init__(
         self,
         repository: CurriculumRepository,
-        settings: ConceptProgressSettings
+        settings: ConceptProgressSettings,
+        logical_question_service: LogicalQuestionService
     ):
 
         self.repository = repository
         self.settings = settings
 
-
-    def _get_question_key(
-        self,
-        attempt
-    ) -> str:
-
-        if attempt.chunk_id is not None:
-
-            return (
-                f"chunk:{attempt.chunk_id}"
-            )
-
-        return (
-            f"snapshot:"
-            f"{attempt.question_number}:"
-            f"{attempt.question_content}"
+        self.logical_question_service = (
+            logical_question_service
         )
 
 
@@ -52,6 +43,10 @@ class StudentConceptProgressService:
         curriculum_id: int,
         lesson_number: str
     ) -> list[dict]:
+
+        # -------------------------------------------------
+        # 1. Load all concept diagnosis history
+        # -------------------------------------------------
 
         rows = (
             self.repository
@@ -66,6 +61,10 @@ class StudentConceptProgressService:
 
         concepts = {}
 
+
+        # -------------------------------------------------
+        # 2. Aggregate history per curriculum concept
+        # -------------------------------------------------
 
         for (
             diagnosis,
@@ -88,9 +87,9 @@ class StudentConceptProgressService:
                     "concept_name":
                         diagnosis.concept_name,
 
-                    # ---------------------------------
-                    # Historical raw occurrence counts
-                    # ---------------------------------
+                    # -------------------------------------
+                    # Raw historical activity
+                    # -------------------------------------
 
                     "total_occurrences":
                         0,
@@ -104,9 +103,9 @@ class StudentConceptProgressService:
                     "historical_insufficient_evidence_count":
                         0,
 
-                    # ---------------------------------
+                    # -------------------------------------
                     # Latest overall assessed evidence
-                    # ---------------------------------
+                    # -------------------------------------
 
                     "latest_assessed_status":
                         None,
@@ -114,9 +113,9 @@ class StudentConceptProgressService:
                     "latest_assessed_attempt_id":
                         None,
 
-                    # ---------------------------------
-                    # Internal working dictionaries
-                    # ---------------------------------
+                    # -------------------------------------
+                    # Internal logical-question tracking
+                    # -------------------------------------
 
                     "_unique_questions_seen":
                         set(),
@@ -136,9 +135,26 @@ class StudentConceptProgressService:
             ] += 1
 
 
+            # -------------------------------------------------
+            # IMPORTANT:
+            #
+            # We no longer assume:
+            #
+            # chunk_id == question
+            #
+            # LogicalQuestionService resolves:
+            #
+            # chunk 150 -> group:1
+            # chunk 151 -> group:1
+            #
+            # chunk 158 -> chunk:158
+            # -------------------------------------------------
+
             question_key = (
-                self._get_question_key(
-                    attempt
+                self.logical_question_service
+                .get_question_key_for_attempt(
+                    db=db,
+                    attempt=attempt
                 )
             )
 
@@ -155,9 +171,9 @@ class StudentConceptProgressService:
             )
 
 
-            # -----------------------------------------
-            # Historical counts
-            # -----------------------------------------
+            # -------------------------------------------------
+            # 3. Historical diagnosis counts
+            # -------------------------------------------------
 
             if status == "demonstrated":
 
@@ -183,13 +199,15 @@ class StudentConceptProgressService:
                 ] += 1
 
 
-            # -----------------------------------------
-            # Only real assessed evidence can update
-            # the current result for a question.
+            # -------------------------------------------------
+            # 4. Current evidence
             #
-            # insufficient_evidence does NOT erase
-            # earlier assessed evidence.
-            # -----------------------------------------
+            # Only demonstrated / needs_review represent
+            # actual assessed evidence.
+            #
+            # insufficient_evidence does not overwrite
+            # previous assessed evidence.
+            # -------------------------------------------------
 
             if (
                 status
@@ -218,6 +236,10 @@ class StudentConceptProgressService:
                 ] = attempt.id
 
 
+        # -------------------------------------------------
+        # 5. Runtime settings
+        # -------------------------------------------------
+
         minimum_unique_questions = (
             self.settings
             .get_minimum_unique_assessed_questions(
@@ -245,6 +267,10 @@ class StudentConceptProgressService:
         results = []
 
 
+        # -------------------------------------------------
+        # 6. Calculate progress for each concept
+        # -------------------------------------------------
+
         for item in concepts.values():
 
             unique_questions_seen = len(
@@ -260,6 +286,11 @@ class StudentConceptProgressService:
                 ]
             )
 
+
+            # ---------------------------------------------
+            # This is now UNIQUE LOGICAL questions,
+            # not unique chunks.
+            # ---------------------------------------------
 
             unique_assessed_questions = len(
                 latest_assessed_by_question
@@ -302,9 +333,9 @@ class StudentConceptProgressService:
             )
 
 
-            # -----------------------------------------
-            # Evidence-aware classification
-            # -----------------------------------------
+            # -------------------------------------------------
+            # 7. Evidence-aware classification
+            # -------------------------------------------------
 
             if not has_enough_evidence:
 
@@ -363,6 +394,10 @@ class StudentConceptProgressService:
                     "understanding of this concept."
                 )
 
+
+            # -------------------------------------------------
+            # 8. Public result
+            # -------------------------------------------------
 
             result = {
                 "concept_code":
@@ -435,6 +470,10 @@ class StudentConceptProgressService:
                 result
             )
 
+
+        # -------------------------------------------------
+        # 9. Stable output order
+        # -------------------------------------------------
 
         results.sort(
             key=lambda item:

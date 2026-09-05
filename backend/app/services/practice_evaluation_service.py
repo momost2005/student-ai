@@ -10,17 +10,28 @@ from app.repositories.curriculum_repository import (
     CurriculumRepository
 )
 
+from app.repositories.practice_attempt_question_repository import (
+    PracticeAttemptQuestionRepository
+)
+
 
 class PracticeEvaluationService:
 
     def __init__(
         self,
         repository: CurriculumRepository,
-        ai_gateway: AIGateway
+        ai_gateway: AIGateway,
+        question_identity_repository:
+            PracticeAttemptQuestionRepository
     ):
 
         self.repository = repository
+
         self.ai_gateway = ai_gateway
+
+        self.question_identity_repository = (
+            question_identity_repository
+        )
 
 
     def _parse_evaluation(
@@ -36,17 +47,15 @@ class PracticeEvaluationService:
         text = response.strip()
 
 
-        # -----------------------------------------
-        # Remove Markdown code fences if the model
-        # unexpectedly returns them.
-        # -----------------------------------------
-
         if text.startswith("```"):
 
             lines = text.splitlines()
 
+
             if lines:
+
                 lines = lines[1:]
+
 
             if (
                 lines
@@ -58,14 +67,11 @@ class PracticeEvaluationService:
 
                 lines = lines[:-1]
 
+
             text = "\n".join(
                 lines
             ).strip()
 
-
-        # -----------------------------------------
-        # Parse JSON
-        # -----------------------------------------
 
         try:
 
@@ -73,21 +79,20 @@ class PracticeEvaluationService:
                 text
             )
 
+
         except json.JSONDecodeError:
 
             return (
                 "unknown",
+
                 (
                     "The evaluation response "
                     "could not be processed."
                 ),
+
                 {}
             )
 
-
-        # -----------------------------------------
-        # Validate overall AI status
-        # -----------------------------------------
 
         status = (
             str(
@@ -123,10 +128,6 @@ class PracticeEvaluationService:
             .strip()
         )
 
-
-        # -----------------------------------------
-        # Validate concept diagnoses
-        # -----------------------------------------
 
         allowed_diagnosis_statuses = {
             "demonstrated",
@@ -172,11 +173,6 @@ class PracticeEvaluationService:
                 .strip()
             )
 
-
-            # -------------------------------------
-            # The AI is not allowed to invent
-            # curriculum concepts.
-            # -------------------------------------
 
             if (
                 concept_code
@@ -231,13 +227,6 @@ class PracticeEvaluationService:
             }
 
 
-        # -----------------------------------------
-        # Every expected concept must have a
-        # diagnosis.
-        #
-        # Missing diagnosis never means weak.
-        # -----------------------------------------
-
         for concept_code in (
             expected_concept_codes
         ):
@@ -276,18 +265,10 @@ class PracticeEvaluationService:
         concept_diagnoses: dict[str, dict]
     ) -> str:
 
-        # -----------------------------------------
-        # Keep explicit incorrect decisions.
-        # -----------------------------------------
-
         if ai_status == "incorrect":
 
             return "incorrect"
 
-
-        # -----------------------------------------
-        # Keep explicit partial decisions.
-        # -----------------------------------------
 
         if ai_status == "partial":
 
@@ -307,12 +288,6 @@ class PracticeEvaluationService:
             in concept_diagnoses.values()
         }
 
-
-        # -----------------------------------------
-        # The AI cannot mark the whole answer
-        # correct when one of the concepts required
-        # by the question has not been demonstrated.
-        # -----------------------------------------
 
         if (
             "needs_review"
@@ -340,18 +315,6 @@ class PracticeEvaluationService:
         feedback: str
     ) -> str:
 
-        # -----------------------------------------
-        # Example:
-        #
-        # AI says overall "correct" because the
-        # final numeric answer is right, but one
-        # required concept has insufficient
-        # evidence.
-        #
-        # We normalize the result to partial and
-        # make the feedback consistent.
-        # -----------------------------------------
-
         if (
             ai_status == "correct"
             and
@@ -369,6 +332,20 @@ class PracticeEvaluationService:
         return feedback
 
 
+    def _save_question_identity(
+        self,
+        db: Session,
+        attempt_id: int,
+        chunk_id: int
+    ) -> None:
+
+        self.question_identity_repository.save_identity(
+            db=db,
+            attempt_id=attempt_id,
+            chunk_id=chunk_id
+        )
+
+
     def evaluate(
         self,
         db: Session,
@@ -378,9 +355,9 @@ class PracticeEvaluationService:
         student_answer: str
     ) -> dict:
 
-        # -----------------------------------------
-        # 1. Get trusted curriculum question
-        # -----------------------------------------
+        # -------------------------------------------------
+        # 1. Trusted curriculum question
+        # -------------------------------------------------
 
         chunk = (
             self.repository
@@ -406,9 +383,9 @@ class PracticeEvaluationService:
             }
 
 
-        # -----------------------------------------
-        # 2. Get verified reference solution
-        # -----------------------------------------
+        # -------------------------------------------------
+        # 2. Verified solution
+        # -------------------------------------------------
 
         solution = (
             self.repository
@@ -449,6 +426,13 @@ class PracticeEvaluationService:
             )
 
 
+            self._save_question_identity(
+                db=db,
+                attempt_id=attempt.id,
+                chunk_id=chunk.id
+            )
+
+
             return {
                 "attempt_id":
                     attempt.id,
@@ -461,9 +445,9 @@ class PracticeEvaluationService:
             }
 
 
-        # -----------------------------------------
-        # 3. Get trusted curriculum concepts
-        # -----------------------------------------
+        # -------------------------------------------------
+        # 3. Trusted curriculum concepts
+        # -------------------------------------------------
 
         concepts = (
             self.repository
@@ -506,9 +490,9 @@ class PracticeEvaluationService:
             )
 
 
-        # -----------------------------------------
-        # 4. Build evaluation prompt
-        # -----------------------------------------
+        # -------------------------------------------------
+        # 4. Evaluation prompt
+        # -------------------------------------------------
 
         prompt = f"""
 You are evaluating a student's mathematics answer.
@@ -593,9 +577,9 @@ Return exactly this JSON structure:
 """
 
 
-        # -----------------------------------------
+        # -------------------------------------------------
         # 5. AI evaluation
-        # -----------------------------------------
+        # -------------------------------------------------
 
         (
             provider_name,
@@ -607,9 +591,9 @@ Return exactly this JSON structure:
         )
 
 
-        # -----------------------------------------
-        # 6. Parse AI response
-        # -----------------------------------------
+        # -------------------------------------------------
+        # 6. Parse
+        # -------------------------------------------------
 
         (
             ai_status,
@@ -623,9 +607,9 @@ Return exactly this JSON structure:
         )
 
 
-        # -----------------------------------------
-        # 7. Deterministic consistency guardrail
-        # -----------------------------------------
+        # -------------------------------------------------
+        # 7. Deterministic guardrail
+        # -------------------------------------------------
 
         evaluation_status = (
             self._normalize_overall_status(
@@ -648,9 +632,9 @@ Return exactly this JSON structure:
         )
 
 
-        # -----------------------------------------
-        # 8. Save attempt + concept diagnoses
-        # -----------------------------------------
+        # -------------------------------------------------
+        # 8. Save attempt + concept snapshots
+        # -------------------------------------------------
 
         attempt = (
             self.repository
@@ -679,13 +663,30 @@ Return exactly this JSON structure:
         )
 
 
-        # -----------------------------------------
-        # 9. Return result
-        # -----------------------------------------
+        # -------------------------------------------------
+        # 9. Save immutable logical-question snapshot
+        # -------------------------------------------------
+
+        identity = (
+            self.question_identity_repository
+            .save_identity(
+                db=db,
+                attempt_id=attempt.id,
+                chunk_id=chunk.id
+            )
+        )
+
+
+        # -------------------------------------------------
+        # 10. Result
+        # -------------------------------------------------
 
         return {
             "attempt_id":
                 attempt.id,
+
+            "logical_question_key":
+                identity.logical_question_key,
 
             "status":
                 evaluation_status,
