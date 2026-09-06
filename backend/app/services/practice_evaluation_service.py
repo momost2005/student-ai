@@ -423,15 +423,19 @@ class PracticeEvaluationService:
                     ai_provider=None,
                     ai_model=None,
                     concept_diagnoses=None,
-                    idempotency_key=idempotency_key
+                    idempotency_key=(
+                        idempotency_key
+                    )
                 )
             )
 
 
-            identity = self._save_question_identity(
-                db=db,
-                attempt_id=attempt.id,
-                chunk_id=chunk.id
+            identity = (
+                self._save_question_identity(
+                    db=db,
+                    attempt_id=attempt.id,
+                    chunk_id=chunk.id
+                )
             )
 
 
@@ -621,9 +625,7 @@ Return exactly this JSON structure:
                 ai_status=ai_status,
                 concept_diagnoses=(
                     concept_diagnoses
-                ),
-
-                idempotency_key=idempotency_key
+                )
             )
         )
 
@@ -665,6 +667,9 @@ Return exactly this JSON structure:
                 ai_model=model_name,
                 concept_diagnoses=(
                     concept_diagnoses
+                ),
+                idempotency_key=(
+                    idempotency_key
                 )
             )
         )

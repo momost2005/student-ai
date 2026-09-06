@@ -14,6 +14,7 @@ from app.repositories.system_settings_repository import (
     SystemSettingsRepository
 )
 from app.api.practice import router as practice_router
+from app.api.progress import router as progress_router
 
 app = FastAPI(
     title="Student AI API",
@@ -37,6 +38,7 @@ ai_gateway = AIGateway(
 
 
 app.include_router(practice_router)
+app.include_router(progress_router)
 
 
 # Request Models
