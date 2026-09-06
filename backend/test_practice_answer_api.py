@@ -2,7 +2,10 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-from app.api.practice import get_practice_submission_service
+from app.api.practice import (
+    get_practice_session_service,
+    get_practice_submission_service
+)
 from app.db.database import get_db
 from app.main import app
 
@@ -18,11 +21,30 @@ class FakePracticeSubmissionService:
         return self.result
 
 
+class FakePracticeSessionService:
+
+    def __init__(self):
+        self.validations = []
+        self.attachments = []
+
+    def validate_answer_submission(self, **kwargs):
+        self.validations.append(kwargs)
+        return None
+
+    def attach_attempt(self, **kwargs):
+        self.attachments.append(kwargs)
+        return None
+
+
 class PracticeAnswerApiTests(unittest.TestCase):
 
     def setUp(self):
         self.db = object()
+        self.session_service = FakePracticeSessionService()
         app.dependency_overrides[get_db] = lambda: self.db
+        app.dependency_overrides[
+            get_practice_session_service
+        ] = lambda: self.session_service
 
     def tearDown(self):
         app.dependency_overrides.clear()
@@ -127,6 +149,43 @@ class PracticeAnswerApiTests(unittest.TestCase):
         )
         self.assertNotIn("correct_sequences", response.json())
         self.assertEqual(service.calls[0]["answer"], [2, 3, 4])
+
+    def test_associates_session_answer_with_attempt(self):
+        self._set_service({
+            "attempt_id": 23,
+            "logical_question_key": "group:1",
+            "question_type": "multi_select",
+            "status": "correct",
+            "feedback": "Correct.",
+            "concept_diagnoses": {},
+            "idempotent_replay": False
+        })
+
+        with TestClient(app) as client:
+            response = client.post(
+                "/api/practice/answer",
+                json={
+                    "student_id": 1,
+                    "curriculum_id": 1,
+                    "session_id": 7,
+                    "logical_question_key": "group:1",
+                    "answer": [2, 3, 4, 6, 8],
+                    "idempotency_key": "session-answer-1"
+                }
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["session_id"], 7)
+        self.assertEqual(
+            self.session_service.attachments[0]["attempt_id"],
+            23
+        )
+        self.assertEqual(
+            self.session_service.validations[0][
+                "logical_question_key"
+            ],
+            "group:1"
+        )
 
     def test_returns_not_found_for_unknown_question(self):
         self._set_service({

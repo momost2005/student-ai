@@ -84,6 +84,12 @@ from app.models.question_group_concept import (
 )
 
 
+from app.models.practice_session import (
+    PracticeSession,
+    PracticeSessionQuestion
+)
+
+
 target_metadata = (
     Base.metadata
 )

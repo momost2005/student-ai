@@ -32,6 +32,7 @@ class PracticeAnswerRequest(BaseModel):
 
     student_id: int = Field(gt=0)
     curriculum_id: int = Field(gt=0)
+    session_id: int | None = Field(default=None, gt=0)
     logical_question_key: str = Field(
         min_length=1,
         max_length=200
@@ -56,6 +57,7 @@ class PracticeAnswerResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     attempt_id: int = Field(gt=0)
+    session_id: int | None = Field(default=None, gt=0)
     logical_question_key: str = Field(min_length=1)
     question_type: str = Field(min_length=1)
     status: str = Field(min_length=1)

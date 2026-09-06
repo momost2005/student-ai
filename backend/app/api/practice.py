@@ -31,6 +31,9 @@ from app.repositories.question_group_attempt_repository import (
 from app.repositories.question_group_repository import (
     QuestionGroupRepository
 )
+from app.repositories.practice_session_repository import (
+    PracticeSessionRepository
+)
 from app.repositories.system_settings_repository import (
     SystemSettingsRepository
 )
@@ -40,6 +43,11 @@ from app.schemas.practice import (
     PracticeConceptResult,
     PracticeQuestionOption,
     PracticeQuestionResponse
+)
+from app.schemas.practice_session import (
+    PracticeSessionNextQuestionResponse,
+    PracticeSessionResponse,
+    PracticeSessionStartRequest
 )
 from app.services.curriculum_practice_service import (
     CurriculumPracticeService
@@ -52,6 +60,9 @@ from app.services.practice_evaluation_service import (
 )
 from app.services.practice_submission_service import (
     PracticeSubmissionService
+)
+from app.services.practice_session_service import (
+    PracticeSessionService
 )
 from app.services.question_group_evaluation_service import (
     QuestionGroupEvaluationService
@@ -118,6 +129,43 @@ def get_practice_submission_service() -> PracticeSubmissionService:
     )
 
 
+@lru_cache(maxsize=1)
+def get_practice_session_service() -> PracticeSessionService:
+    return PracticeSessionService(
+        repository=PracticeSessionRepository(),
+        practice_service=get_practice_service()
+    )
+
+
+def build_practice_question_response(
+    question: dict
+) -> PracticeQuestionResponse:
+    prompt = question.get("content")
+
+    if not isinstance(prompt, str) or not prompt.strip():
+        raise HTTPException(
+            status_code=500,
+            detail="The selected practice question has no prompt."
+        )
+
+    options = [
+        PracticeQuestionOption(
+            id=option["sequence"],
+            text=option["content"]
+        )
+        for option in question.get("options", [])
+    ]
+
+    return PracticeQuestionResponse(
+        logical_question_key=question["logical_question_key"],
+        question_type=question["question_type"],
+        lesson_number=question["lesson_number"],
+        question_number=question.get("question_number"),
+        prompt=prompt,
+        options=options
+    )
+
+
 @router.get(
     "/question",
     response_model=PracticeQuestionResponse,
@@ -170,29 +218,8 @@ def get_practice_question(
             )
         )
 
-    prompt = question.get("content")
-
-    if not isinstance(prompt, str) or not prompt.strip():
-        raise HTTPException(
-            status_code=500,
-            detail="The selected practice question has no prompt."
-        )
-
-    options = [
-        PracticeQuestionOption(
-            id=option["sequence"],
-            text=option["content"]
-        )
-        for option in question.get("options", [])
-    ]
-
-    return PracticeQuestionResponse(
-        logical_question_key=question["logical_question_key"],
-        question_type=question["question_type"],
-        lesson_number=question["lesson_number"],
-        question_number=question.get("question_number"),
-        prompt=prompt,
-        options=options
+    return build_practice_question_response(
+        question
     )
 
 
@@ -206,13 +233,44 @@ def submit_practice_answer(
     db: Session = Depends(get_db),
     service: PracticeSubmissionService = Depends(
         get_practice_submission_service
+    ),
+    session_service: PracticeSessionService = Depends(
+        get_practice_session_service
     )
 ) -> PracticeAnswerResponse:
+    logical_question_key = request.logical_question_key.strip()
+
+    if request.session_id is not None:
+        validation_error = (
+            session_service.validate_answer_submission(
+                db=db,
+                session_id=request.session_id,
+                student_id=request.student_id,
+                curriculum_id=request.curriculum_id,
+                logical_question_key=logical_question_key,
+                idempotency_key=request.idempotency_key
+            )
+        )
+
+        if validation_error is not None:
+            raise HTTPException(
+                status_code=(
+                    404
+                    if validation_error["status"]
+                    in {
+                        "session_not_found",
+                        "session_question_not_found"
+                    }
+                    else 409
+                ),
+                detail=validation_error["feedback"]
+            )
+
     result = service.submit(
         db=db,
         student_id=request.student_id,
         curriculum_id=request.curriculum_id,
-        logical_question_key=request.logical_question_key,
+        logical_question_key=logical_question_key,
         answer=request.answer,
         idempotency_key=request.idempotency_key
     )
@@ -246,6 +304,22 @@ def submit_practice_answer(
             )
         )
 
+    if request.session_id is not None:
+        association_error = session_service.attach_attempt(
+            db=db,
+            session_id=request.session_id,
+            student_id=request.student_id,
+            curriculum_id=request.curriculum_id,
+            logical_question_key=logical_question_key,
+            attempt_id=result["attempt_id"]
+        )
+
+        if association_error is not None:
+            raise HTTPException(
+                status_code=409,
+                detail=association_error["feedback"]
+            )
+
     logical_question_key = (
         result.get("logical_question_key")
         or request.logical_question_key.strip()
@@ -278,6 +352,7 @@ def submit_practice_answer(
 
     return PracticeAnswerResponse(
         attempt_id=result["attempt_id"],
+        session_id=request.session_id,
         logical_question_key=logical_question_key,
         question_type=question_type,
         status=status,
@@ -287,4 +362,112 @@ def submit_practice_answer(
             "idempotent_replay",
             False
         )
+    )
+
+
+@router.post(
+    "/sessions",
+    response_model=PracticeSessionResponse,
+    response_model_exclude_none=True,
+    status_code=201
+)
+def start_practice_session(
+    request: PracticeSessionStartRequest,
+    db: Session = Depends(get_db),
+    service: PracticeSessionService = Depends(
+        get_practice_session_service
+    )
+) -> dict:
+    lesson_number = request.lesson_number.strip()
+
+    if not lesson_number:
+        raise HTTPException(
+            status_code=422,
+            detail="lesson_number must not be blank."
+        )
+
+    result = service.start_session(
+        db=db,
+        student_id=request.student_id,
+        curriculum_id=request.curriculum_id,
+        lesson_number=lesson_number,
+        target_question_count=request.target_question_count
+    )
+
+    if result.get("status") in {
+        "student_not_found",
+        "curriculum_not_found"
+    }:
+        raise HTTPException(
+            status_code=404,
+            detail=result["feedback"]
+        )
+
+    return result
+
+
+@router.get(
+    "/sessions/{session_id}/next-question",
+    response_model=PracticeSessionNextQuestionResponse,
+    response_model_exclude_none=True
+)
+def get_session_next_question(
+    session_id: int,
+    topic: Annotated[
+        str | None,
+        Query(min_length=1, max_length=500)
+    ] = None,
+    db: Session = Depends(get_db),
+    service: PracticeSessionService = Depends(
+        get_practice_session_service
+    )
+) -> PracticeSessionNextQuestionResponse:
+    if session_id <= 0:
+        raise HTTPException(
+            status_code=422,
+            detail="session_id must be greater than zero."
+        )
+
+    normalized_topic = topic.strip() if topic else None
+
+    if topic is not None and not normalized_topic:
+        raise HTTPException(
+            status_code=422,
+            detail="topic must not be blank."
+        )
+
+    result = service.get_next_question(
+        db=db,
+        session_id=session_id,
+        topic=normalized_topic
+    )
+
+    if result.get("status") == "session_not_found":
+        raise HTTPException(
+            status_code=404,
+            detail=result["feedback"]
+        )
+
+    public_question = None
+
+    if result.get("question") is not None:
+        public_question = build_practice_question_response(
+            result["question"]
+        )
+
+    return PracticeSessionNextQuestionResponse(
+        session_id=result["session_id"],
+        student_id=result["student_id"],
+        curriculum_id=result["curriculum_id"],
+        lesson_number=result["lesson_number"],
+        status=result["status"],
+        target_question_count=(
+            result["target_question_count"]
+        ),
+        questions_served=result["questions_served"],
+        started_at=result["started_at"],
+        completed_at=result["completed_at"],
+        position=result["position"],
+        question=public_question,
+        is_replay=result["is_replay"]
     )
